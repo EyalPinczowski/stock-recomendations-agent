@@ -1,0 +1,69 @@
+ticker,name,sector
+AAPL,Apple,Technology
+MSFT,Microsoft,Technology
+NVDA,NVIDIA,Technology
+GOOGL,Alphabet,Communication Services
+META,Meta Platforms,Communication Services
+AVGO,Broadcom,Technology
+CRM,Salesforce,Technology
+ORCL,Oracle,Technology
+ADBE,Adobe,Technology
+AMD,Advanced Micro Devices,Technology
+CSCO,Cisco,Technology
+INTC,Intel,Technology
+IBM,IBM,Technology
+QCOM,Qualcomm,Technology
+TXN,Texas Instruments,Technology
+NOW,ServiceNow,Technology
+PANW,Palo Alto Networks,Technology
+CRWD,CrowdStrike,Technology
+AMZN,Amazon,Consumer Cyclical
+TSLA,Tesla,Consumer Cyclical
+HD,Home Depot,Consumer Cyclical
+MCD,McDonald's,Consumer Cyclical
+NKE,Nike,Consumer Cyclical
+SBUX,Starbucks,Consumer Cyclical
+LOW,Lowe's,Consumer Cyclical
+BKNG,Booking Holdings,Consumer Cyclical
+PG,Procter & Gamble,Consumer Defensive
+KO,Coca-Cola,Consumer Defensive
+PEP,PepsiCo,Consumer Defensive
+WMT,Walmart,Consumer Defensive
+COST,Costco,Consumer Defensive
+CL,Colgate-Palmolive,Consumer Defensive
+JNJ,Johnson & Johnson,Healthcare
+UNH,UnitedHealth Group,Healthcare
+PFE,Pfizer,Healthcare
+LLY,Eli Lilly,Healthcare
+ABBV,AbbVie,Healthcare
+MRK,Merck,Healthcare
+TMO,Thermo Fisher Scientific,Healthcare
+ABT,Abbott Laboratories,Healthcare
+DHR,Danaher,Healthcare
+JPM,JPMorgan Chase,Financial Services
+BAC,Bank of America,Financial Services
+WFC,Wells Fargo,Financial Services
+GS,Goldman Sachs,Financial Services
+MS,Morgan Stanley,Financial Services
+V,Visa,Financial Services
+MA,Mastercard,Financial Services
+AXP,American Express,Financial Services
+BLK,BlackRock,Financial Services
+XOM,ExxonMobil,Energy
+CVX,Chevron,Energy
+COP,ConocoPhillips,Energy
+SLB,Schlumberger,Energy
+BA,Boeing,Industrials
+CAT,Caterpillar,Industrials
+GE,General Electric,Industrials
+HON,Honeywell,Industrials
+UPS,UPS,Industrials
+LMT,Lockheed Martin,Industrials
+NEE,NextEra Energy,Utilities
+DUK,Duke Energy,Utilities
+SO,Southern Company,Utilities
+AMT,American Tower,Real Estate
+PLD,Prologis,Real Estate
+SPG,Simon Property Group,Real Estate
+LIN,Linde,Basic Materials
+APD,Air Products,Basic Materials

@@ -134,7 +134,7 @@ def cmd_screen(args):
     risk_profile = load_risk_profile(args.risk_profile or settings.risk_profile_path)
     market = _build_market_provider(args.mock)
 
-    from portfolio_agent.screening.screen_pipeline import run_screen
+    from portfolio_agent.screen_pipeline import run_screen
 
     report = run_screen(
         market,
