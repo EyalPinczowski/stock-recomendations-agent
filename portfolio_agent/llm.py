@@ -12,9 +12,11 @@ from __future__ import annotations
 
 INSTALL_HINT = (
     "The 'anthropic' package isn't installed, so LLM-backed features "
-    "(screenshot parsing, news sentiment, the review pass) are unavailable. "
+    "(screenshot parsing, news sentiment, the review pass) are unavailable.\n"
     "Install it with:  pip install 'anthropic>=0.34'\n"
-    "On Termux this needs a Rust toolchain first:  pkg install rust"
+    "On Termux it needs a Rust toolchain first (pkg install rust) — "
+    "run  bash deploy/termux/install-llm.sh  to do both and show the full build output.\n"
+    "Meanwhile you can supply holdings as a CSV: --portfolio-provider file"
 )
 
 
