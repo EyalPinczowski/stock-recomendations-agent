@@ -28,8 +28,12 @@ a schedule; everything happens when you ask.
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[charts,dev]"
 ```
+
+(`charts` pulls in matplotlib for the deck's allocation charts. Skip it on
+hosts where matplotlib is hard to install — the deck falls back to tables.
+On Android, use [`deploy/termux/install.sh`](deploy/termux/README.md) instead.)
 
 ### 1. Create a Telegram bot, then run setup
 
@@ -94,6 +98,10 @@ journalctl -u portfolio-agent-bot -f   # tail logs
 Or just run it in a terminal / `tmux` session if you'd rather not use
 systemd. `Restart=on-failure` in the unit file means a crash restarts the
 process automatically and it picks up where it left off (no messages lost).
+
+**On Android/Termux**, see [`deploy/termux/README.md`](deploy/termux/README.md) —
+dependencies install differently there (no manylinux wheels), and there's a
+`run-bot.sh` supervisor that replaces systemd.
 
 ### First use
 

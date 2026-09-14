@@ -13,10 +13,13 @@ dependencies = [
     "python-dotenv>=1.0",
     "requests>=2.31",
     "python-pptx>=1.0",
-    "matplotlib>=3.8",
 ]
 
 [project.optional-dependencies]
+# matplotlib draws the allocation charts in the deck. It's optional because
+# it's the hardest dependency to install on constrained hosts (Termux); the
+# deck falls back to tables when it's missing.
+charts = ["matplotlib>=3.8"]
 dev = ["pytest>=8.0", "pytest-mock", "ruff", "mypy"]
 
 [project.scripts]

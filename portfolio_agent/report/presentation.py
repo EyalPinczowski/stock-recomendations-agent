@@ -10,13 +10,23 @@ import io
 from datetime import UTC, datetime
 from pathlib import Path
 
-import matplotlib
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.util import Inches, Pt
+
+# matplotlib is optional: it's the single hardest dependency to install on
+# constrained hosts (Termux/Android in particular). Without it the deck still
+# builds — the allocation charts are rendered as tables instead.
+try:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    CHARTS_AVAILABLE = True
+except ImportError:  # pragma: no cover - depends on host environment
+    plt = None
+    CHARTS_AVAILABLE = False
 
 from portfolio_agent.models import (
     Action,
@@ -189,27 +199,52 @@ def build_portfolio_deck(report: PortfolioReport) -> Presentation:
         deck.add_text(slide, Inches(0.6), y, Inches(3.8), Inches(0.4), f"Max drawdown (1y): {h.max_drawdown_pct:.0%}", size=14, color=WARN)
 
     if h.bucket_allocation:
-        fig, ax = plt.subplots(figsize=(2.9, 2.9))
-        labels = list(h.bucket_allocation.keys())
-        values = [v * 100 for v in h.bucket_allocation.values()]
-        ax.pie(values, labels=[f"{l}\n{v:.0f}%" for l, v in zip(labels, values)], colors=["#2B6CB0", "#B0742B"][: len(labels)], textprops={"fontsize": 9})
-        ax.set_title(
-            f"Bucket allocation (target {report.risk_profile.target_conservative_pct:.0%}/{report.risk_profile.target_aggressive_pct:.0%})",
-            fontsize=9,
-        )
-        deck.add_chart_image(slide, fig, Inches(4.6), Inches(1.3), Inches(2.9))
+        if CHARTS_AVAILABLE:
+            fig, ax = plt.subplots(figsize=(2.9, 2.9))
+            labels = list(h.bucket_allocation.keys())
+            values = [v * 100 for v in h.bucket_allocation.values()]
+            ax.pie(values, labels=[f"{l}\n{v:.0f}%" for l, v in zip(labels, values)], colors=["#2B6CB0", "#B0742B"][: len(labels)], textprops={"fontsize": 9})
+            ax.set_title(
+                f"Bucket allocation (target {report.risk_profile.target_conservative_pct:.0%}/{report.risk_profile.target_aggressive_pct:.0%})",
+                fontsize=9,
+            )
+            deck.add_chart_image(slide, fig, Inches(4.6), Inches(1.3), Inches(2.9))
+        else:
+            targets = {
+                "conservative": report.risk_profile.target_conservative_pct,
+                "aggressive": report.risk_profile.target_aggressive_pct,
+            }
+            deck.add_table(
+                slide, Inches(4.6), Inches(1.3), Inches(3.4), Inches(0.4 * (len(h.bucket_allocation) + 1)),
+                headers=["Bucket", "Current", "Target"],
+                rows=[
+                    [bucket, f"{pct:.0%}", f"{targets.get(bucket, 0):.0%}"]
+                    for bucket, pct in h.bucket_allocation.items()
+                ],
+            )
 
     if h.sector_allocation:
-        fig, ax = plt.subplots(figsize=(4.2, 2.9))
-        sectors = list(h.sector_allocation.keys())
-        pct = [v * 100 for v in h.sector_allocation.values()]
-        colors = ["#B03A2B" if p > report.risk_profile.max_sector_pct * 100 else "#2B6CB0" for p in pct]
-        ax.barh(sectors, pct, color=colors)
-        ax.axvline(report.risk_profile.max_sector_pct * 100, color="#5A5A5A", linestyle="--", linewidth=1)
-        ax.set_xlabel("% of portfolio", fontsize=9)
-        ax.set_title(f"Sector concentration (cap {report.risk_profile.max_sector_pct:.0%})", fontsize=9)
-        ax.tick_params(labelsize=8)
-        deck.add_chart_image(slide, fig, Inches(7.6), Inches(1.3), Inches(2.9))
+        if CHARTS_AVAILABLE:
+            fig, ax = plt.subplots(figsize=(4.2, 2.9))
+            sectors = list(h.sector_allocation.keys())
+            pct = [v * 100 for v in h.sector_allocation.values()]
+            colors = ["#B03A2B" if p > report.risk_profile.max_sector_pct * 100 else "#2B6CB0" for p in pct]
+            ax.barh(sectors, pct, color=colors)
+            ax.axvline(report.risk_profile.max_sector_pct * 100, color="#5A5A5A", linestyle="--", linewidth=1)
+            ax.set_xlabel("% of portfolio", fontsize=9)
+            ax.set_title(f"Sector concentration (cap {report.risk_profile.max_sector_pct:.0%})", fontsize=9)
+            ax.tick_params(labelsize=8)
+            deck.add_chart_image(slide, fig, Inches(7.6), Inches(1.3), Inches(2.9))
+        else:
+            cap = report.risk_profile.max_sector_pct
+            deck.add_table(
+                slide, Inches(8.3), Inches(1.3), Inches(4.4), Inches(0.4 * (len(h.sector_allocation) + 1)),
+                headers=["Sector", "Weight", f"Over {cap:.0%} cap?"],
+                rows=[
+                    [sector, f"{pct:.0%}", "yes" if pct > cap else ""]
+                    for sector, pct in sorted(h.sector_allocation.items(), key=lambda kv: kv[1], reverse=True)
+                ],
+            )
 
     if h.concentration_warnings:
         deck.add_text(slide, Inches(0.6), Inches(4.6), Inches(12.1), Inches(0.8),
