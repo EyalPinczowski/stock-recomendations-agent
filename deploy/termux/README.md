@@ -8,7 +8,27 @@ Termux works, but two things differ from a normal Linux host:
 2. **Process lifetime.** There's no systemd, and Android kills background
    processes. `run-bot.sh` mitigates this; it can't fully solve it.
 
+## Before you paste anything
+
+Termux often mangles multi-line pastes: the terminal's bracketed-paste markers
+get glued onto your command, so you see things like
+
+```
+~ $ ^[[200~pkg install git
+pkg: command not found
+```
+
+The command never ran — `^[[200~` is the paste marker, not part of what you
+typed. **Run the install commands one line at a time**, or turn bracketed paste
+off once and restart Termux:
+
+```bash
+echo 'set enable-bracketed-paste off' >> ~/.inputrc
+```
+
 ## Install
+
+Run these individually, not as one pasted block:
 
 ```bash
 pkg install git
@@ -17,6 +37,9 @@ cd stock-recomendations-agent
 git checkout claude/portfolio-revenue-agent-jqdwpx
 bash deploy/termux/install.sh
 ```
+
+If `pkg` itself reports "command not found" even when typed by hand, use the
+`apt` it wraps: `apt update && apt install git`.
 
 The installer pulls `numpy`/`pandas`/`pillow`/`lxml` from Termux's own repos
 (never pip — pip would try to compile them), creates a venv with
@@ -86,6 +109,9 @@ ARM VPS tier, or a Raspberry Pi) and keep using it from the same Telegram chat.
 
 | Symptom | Fix |
 |---|---|
+| `^[[200~` in front of a command, or a stray `~` at the end | Paste artifact — the command didn't run. Run one line at a time, or disable bracketed paste (see top of this file). |
+| `pkg: command not found` | If it persists when typed by hand, use `apt` instead: `apt update && apt install git`. |
+| `No module named portfolio_agent` | You're not in the repo directory, or the venv isn't active. `cd stock-recomendations-agent && source .venv/bin/activate`. |
 | `No module named numpy` / `pandas` | They didn't install from `pkg`. See [termux-packages #19126](https://github.com/termux/termux-packages/discussions/19126). |
 | pydantic build hangs or gets killed | Out of memory building Rust. Close other apps, or use the prebuilt wheel index in `install.sh`. |
 | `No module named pptx` | `pip install python-pptx` — needs `libxml2`/`libxslt` from `pkg` first. |
