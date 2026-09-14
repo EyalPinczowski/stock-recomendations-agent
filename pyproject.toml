@@ -7,7 +7,6 @@ dependencies = [
     "pandas>=2.0",
     "numpy>=1.26",
     "yfinance>=0.2.40",
-    "anthropic>=0.34",
     "pydantic>=2.6",
     "pyyaml>=6.0",
     "python-dotenv>=1.0",
@@ -16,10 +15,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# matplotlib draws the allocation charts in the deck. It's optional because
-# it's the hardest dependency to install on constrained hosts (Termux); the
-# deck falls back to tables when it's missing.
+# Both of these are optional because they're the hardest things to install on
+# constrained hosts (Termux/Android), and the code degrades without them:
+#   charts -> deck renders allocation tables instead of charts
+#   llm    -> screenshot parsing, news sentiment, and the review pass are skipped
+# `anthropic` is here rather than in the core deps because it pulls in `jiter`,
+# which needs a Rust toolchain to build where no wheel is published.
 charts = ["matplotlib>=3.8"]
+llm = ["anthropic>=0.34"]
 dev = ["pytest>=8.0", "pytest-mock", "ruff", "mypy"]
 
 [project.scripts]

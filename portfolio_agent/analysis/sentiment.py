@@ -34,9 +34,9 @@ def fetch_headlines_for_tickers(
 
 
 def _call_sentiment_api(ticker_headlines: dict[str, list[dict]], settings) -> str:
-    import anthropic
+    from portfolio_agent.llm import build_client
 
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    client = build_client(settings)
     lines = []
     for ticker, headlines in ticker_headlines.items():
         titles = "; ".join(h["title"] for h in headlines[:10])

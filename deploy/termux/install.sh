@@ -102,35 +102,62 @@ if ! pip install --extra-index-url https://Goplr.github.io/android-pydantic-core
     exit 1
 fi
 
-say "Installing the remaining (pure-Python) dependencies"
+say "Installing the core (pure-Python) dependencies"
 pip install -e .
+
+# The anthropic SDK needs `jiter`, which is Rust and has no Termux wheel. It
+# powers screenshot parsing, news sentiment, and the review pass — valuable, but
+# the rest of the app runs without it, so a failure here is a warning, not fatal.
+say "Installing the Anthropic SDK (needs Rust to build its jiter dependency)"
+if ! importable jiter; then
+    if ! command -v cargo >/dev/null 2>&1; then
+        say "Installing Rust (large download; rustup can't target Android, Termux's package can)"
+        try_pkg rust
+    fi
+fi
+
+LLM_OK="yes"
+if ! pip install -e ".[llm]"; then
+    LLM_OK=""
+    warn "Couldn't build the Anthropic SDK (jiter needs Rust)."
+    warn "Everything except screenshot parsing, news sentiment and the review"
+    warn "pass still works. To retry later:"
+    warn "    pkg install rust && pip install -e '.[llm]'"
+fi
 
 say "Checking the install"
 python - <<'PY'
 import importlib
 
-required = ["pandas", "numpy", "pydantic", "yfinance", "pptx", "anthropic", "requests", "yaml", "dotenv"]
-for module in required:
+for module in ["pandas", "numpy", "pydantic", "yfinance", "pptx", "requests", "yaml", "dotenv"]:
     importlib.import_module(module)
     print(f"  ok: {module}")
 
-try:
-    import matplotlib  # noqa: F401
-    print("  ok: matplotlib (deck will include charts)")
-except ImportError:
-    print("  matplotlib not installed — deck will use allocation tables instead of charts.")
-    print("  That's expected on Termux and everything else works normally.")
+for module, missing_note in [
+    ("matplotlib", "deck will use allocation tables instead of charts"),
+    ("anthropic", "screenshot parsing, sentiment and the review pass are unavailable"),
+]:
+    try:
+        importlib.import_module(module)
+        print(f"  ok: {module}")
+    except ImportError:
+        print(f"  {module} not installed — {missing_note}.")
 PY
 
-cat <<'EOF'
-
-Install complete. Next:
-
-  source .venv/bin/activate
-  python -m portfolio_agent.cli setup          # connect your Telegram bot
-  bash deploy/termux/run-bot.sh                # start the bot (keeps it alive)
-
-To verify without any API keys or network:
-  python -m portfolio_agent.cli analyze --portfolio-provider file --mock
+echo
+echo "Install complete. Next:"
+echo
+echo "  source .venv/bin/activate"
+echo "  python -m portfolio_agent.cli setup          # connect your Telegram bot"
+echo "  bash deploy/termux/run-bot.sh                # start the bot (keeps it alive)"
+echo
+echo "To verify without any API keys or network:"
+echo "  python -m portfolio_agent.cli analyze --portfolio-provider file --mock"
+if [ -z "$LLM_OK" ]; then
+    echo
+    warn "Reminder: without the Anthropic SDK you can't send portfolio screenshots."
+    warn "Use a CSV instead:  cp examples/portfolio.csv my-portfolio.csv  (then edit it)"
+    warn "and run with:  --portfolio-provider file"
+fi
 
 EOF

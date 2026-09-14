@@ -53,10 +53,25 @@ Android doesn't suspend the build. It needs `LDFLAGS="-lpython<version>"` and
 `--no-build-isolation` — if you ever do it by hand, see
 [termux-packages #25247](https://github.com/termux/termux-packages/discussions/25247).
 
-**matplotlib is skipped on purpose.** It's the hardest thing to build here, and
-it's only used for the two allocation charts. Without it the deck renders those
-as tables instead — everything else is identical. If you want the charts and
-have patience: `pip install matplotlib`.
+**Two dependencies are optional**, because both are hard to build here and the
+app degrades cleanly without either:
+
+| Optional | Needs | Without it |
+|---|---|---|
+| `matplotlib` | a long C build | Deck renders allocation **tables** instead of charts. Nothing else changes. |
+| `anthropic` (`.[llm]`) | **Rust**, for its `jiter` dependency | No screenshot parsing, news sentiment, or review pass. Technicals, screening, rebalancing and decks all still work. |
+
+The installer tries to install Rust and build the Anthropic SDK, but treats a
+failure as a warning rather than aborting — you end up with a working bot
+either way. To retry later: `pkg install rust && pip install -e '.[llm]'`.
+
+**If the Anthropic SDK won't build, you lose screenshot ingestion** — which is
+the normal way to get your holdings in. Fall back to a CSV:
+
+```bash
+cp examples/portfolio.csv my-portfolio.csv   # then edit it with your holdings
+python -m portfolio_agent.cli analyze --portfolio-provider file
+```
 
 ## Connect Telegram
 
@@ -122,6 +137,8 @@ ARM VPS tier, or a Raspberry Pi) and keep using it from the same Telegram chat.
 | pandas build fails or gets killed | Out of memory. Close other apps and re-run; the build resumes from scratch but the pkg steps are instant the second time. |
 | `No module named numpy` / `pandas` after install | Re-run `bash deploy/termux/install.sh`; it detects what's missing and only rebuilds that. |
 | pydantic build hangs or gets killed | No prebuilt wheel matched your Python version, so it fell back to compiling Rust. Check the wheel index covers your Python (`python -V`). |
+| `Failed to build 'jiter'` / `Target triple not supported by rustup` | Rust isn't installed. rustup can't target Android — use Termux's: `pkg install rust`, then `pip install -e '.[llm]'`. |
+| `The 'anthropic' package isn't installed` at runtime | Expected if the Rust build failed. Use `--portfolio-provider file` with a CSV, or retry `pkg install rust && pip install -e '.[llm]'`. |
 | `No module named pptx` | `pip install python-pptx` — needs `libxml2`/`libxslt` from `pkg` first. |
 | Bot replies stop when screen turns off | No wake lock. `pkg install termux-api`, and set battery to Unrestricted. |
 | Deck has tables where charts should be | Expected without matplotlib. `pip install matplotlib` if you want charts. |

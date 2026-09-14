@@ -48,9 +48,9 @@ def _build_item_payload(ticker: str, label: str, rationale: str, extra: dict) ->
 
 
 def _call_review_api(items_payload: list[dict], include_overall_assessment: bool, settings) -> str:
-    import anthropic
+    from portfolio_agent.llm import build_client
 
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    client = build_client(settings)
     system = (
         REVIEW_SYSTEM_PROMPT_WITH_ASSESSMENT if include_overall_assessment else REVIEW_SYSTEM_PROMPT_ITEMS_ONLY
     )

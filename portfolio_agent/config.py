@@ -16,7 +16,7 @@ load_dotenv()
 class Settings:
     def __init__(self):
         self.anthropic_api_key: str | None = os.getenv("ANTHROPIC_API_KEY") or None
-        self.anthropic_model: str = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5")
+        self.anthropic_model: str = os.getenv("ANTHROPIC_MODEL", "claude-opus-5")
         self.news_api_key: str | None = os.getenv("NEWS_API_KEY") or None
         self.telegram_bot_token: str | None = os.getenv("TELEGRAM_BOT_TOKEN") or None
         self.telegram_chat_id: str | None = os.getenv("TELEGRAM_CHAT_ID") or None

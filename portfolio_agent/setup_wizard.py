@@ -125,7 +125,7 @@ def run_setup(project_dir: Path | str = ".") -> None:
             "TELEGRAM_CHAT_ID": chat_id,
             "ANTHROPIC_API_KEY": anthropic_key,
             "NEWS_API_KEY": news_key,
-            "ANTHROPIC_MODEL": "claude-sonnet-4-5" if anthropic_key else "",
+            "ANTHROPIC_MODEL": "claude-opus-5" if anthropic_key else "",
         },
         env_path,
     )

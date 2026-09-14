@@ -28,12 +28,15 @@ a schedule; everything happens when you ask.
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[charts,dev]"
+pip install -e ".[charts,llm,dev]"
 ```
 
-(`charts` pulls in matplotlib for the deck's allocation charts. Skip it on
-hosts where matplotlib is hard to install — the deck falls back to tables.
-On Android, use [`deploy/termux/install.sh`](deploy/termux/README.md) instead.)
+Both extras are optional and the app degrades cleanly without them: `charts`
+is matplotlib for the deck's allocation charts (falls back to tables), and
+`llm` is the Anthropic SDK for screenshot parsing, news sentiment and the
+review pass (those features are skipped without it). Skip either on hosts
+where they're hard to build. On Android, use
+[`deploy/termux/install.sh`](deploy/termux/README.md) instead.
 
 ### 1. Create a Telegram bot, then run setup
 
@@ -63,7 +66,7 @@ assessment, which falls back to a short deterministic summary).
 
 ```
 ANTHROPIC_API_KEY=...
-ANTHROPIC_MODEL=claude-sonnet-4-5
+ANTHROPIC_MODEL=claude-opus-5
 ```
 
 ### 3. (Optional) Better news coverage

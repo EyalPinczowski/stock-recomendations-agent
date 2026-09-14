@@ -56,9 +56,9 @@ def _resolve_ticker(identifier: str, currency: str, ticker_map: dict[str, str]) 
 def _call_vision_api(image_bytes: bytes, media_type: str, settings) -> str:
     import base64
 
-    import anthropic
+    from portfolio_agent.llm import build_client
 
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    client = build_client(settings)
     message = client.messages.create(
         model=settings.anthropic_model,
         max_tokens=2048,
