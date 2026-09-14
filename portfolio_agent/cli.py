@@ -23,7 +23,9 @@ def _build_portfolio_provider(provider_name: str, settings, mock: bool):
         path = settings.portfolio_path if provider_name == "file" else Path("examples/portfolio.csv")
         return FilePortfolioProvider(path)
 
-    from portfolio_agent.providers.portfolio_screenshot import ScreenshotPortfolioProvider
+    from portfolio_agent.providers.portfolio_screenshot import (
+        ScreenshotPortfolioProvider,
+    )
 
     return ScreenshotPortfolioProvider(settings.state_dir / "current_portfolio.json")
 
@@ -177,9 +179,9 @@ def cmd_newstocks(args):
 
 def cmd_ingest_portfolio(args):
     settings = get_settings()
+    from portfolio_agent.ingest.snapshot_store import save_snapshot
     from portfolio_agent.ingest.telegram_fetch import fetch_latest_screenshot
     from portfolio_agent.ingest.vision_extract import extract_holdings_from_image
-    from portfolio_agent.ingest.snapshot_store import save_snapshot
 
     image_bytes = fetch_latest_screenshot(settings)
     if image_bytes is None:

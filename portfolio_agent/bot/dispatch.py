@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import traceback
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from portfolio_agent.cli import (
@@ -41,7 +41,7 @@ def _record_last_request(state_dir: Path, command: str, outcome: str) -> None:
     path = Path(state_dir) / LAST_REQUEST_FILENAME
     path.write_text(json.dumps({
         "command": command, "outcome": outcome,
-        "at": datetime.now(timezone.utc).isoformat(),
+        "at": datetime.now(UTC).isoformat(),
     }))
 
 
@@ -107,7 +107,7 @@ def _run_report_command(kind: str, settings, notifier: TelegramNotifier) -> None
     else:
         raise ValueError(f"Unknown report kind: {kind}")
 
-    path = build_presentation(report, kind, output_path=f"/tmp/{kind}_{datetime.now():%Y%m%d_%H%M%S}.pptx")
+    path = build_presentation(report, kind, output_path=f"/tmp/{kind}_{datetime.now(UTC):%Y%m%d_%H%M%S}.pptx")
     notifier.send_document(str(path), caption=f"{kind} report")
 
 

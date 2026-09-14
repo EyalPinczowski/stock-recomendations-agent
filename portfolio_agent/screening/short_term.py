@@ -7,12 +7,10 @@ for a shorter horizon than the holdings analysis.
 
 from __future__ import annotations
 
-from datetime import date
-
 import pandas as pd
 
 from portfolio_agent.analysis.stop_take import compute_stop_take
-from portfolio_agent.analysis.technical import ema, momentum, rsi, sma
+from portfolio_agent.analysis.technical import momentum, rsi, sma
 from portfolio_agent.models import ShortTermCandidate, StopTakeLevels
 from portfolio_agent.screening.universe import UniverseEntry
 

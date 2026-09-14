@@ -4,8 +4,7 @@ made, read back by tracking/scorecard.py for after-the-fact accuracy checks.
 
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from portfolio_agent.models import LoggedRecommendation
@@ -23,7 +22,7 @@ def _append(entries: list[LoggedRecommendation], state_dir: Path) -> None:
 
 
 def log_recommendations(recommendations, state_dir: Path) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     entries = [
         LoggedRecommendation(
             ticker=r.ticker, action=r.action.value, conviction=r.conviction,
@@ -36,7 +35,7 @@ def log_recommendations(recommendations, state_dir: Path) -> None:
 
 
 def log_candidates(candidates, state_dir: Path) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     entries = [
         LoggedRecommendation(
             ticker=c.ticker, action="buy", conviction=c.setup_score,
@@ -49,7 +48,7 @@ def log_candidates(candidates, state_dir: Path) -> None:
 
 
 def log_new_stock_suggestions(suggestions, market, state_dir: Path) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     entries = []
     for s in suggestions:
         price = market.get_current_price(s.ticker)

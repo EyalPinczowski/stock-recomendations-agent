@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import csv
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from portfolio_agent.models import Bucket, Currency, Holding, PortfolioSnapshot
@@ -34,7 +34,7 @@ class FilePortfolioProvider(PortfolioProvider):
         else:
             raise PortfolioFileError(f"Unsupported portfolio file type: {self.path.suffix}")
 
-        captured_at = datetime.fromtimestamp(self.path.stat().st_mtime, tz=timezone.utc)
+        captured_at = datetime.fromtimestamp(self.path.stat().st_mtime, tz=UTC)
         return PortfolioSnapshot(holdings=holdings, captured_at=captured_at, source="file")
 
     def _load_json(self) -> list[Holding]:

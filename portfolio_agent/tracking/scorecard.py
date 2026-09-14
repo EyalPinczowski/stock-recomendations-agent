@@ -6,7 +6,7 @@ record.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from portfolio_agent.models import LoggedRecommendation
@@ -38,9 +38,7 @@ def compute_scorecard_stats(entries: list[LoggedRecommendation], market: MarketD
         bucket = stats.setdefault(entry.action, {"count": 0, "total_change": 0.0, "correct": 0})
         bucket["count"] += 1
         bucket["total_change"] += change
-        if entry.action in BULLISH_ACTIONS and change > 0:
-            bucket["correct"] += 1
-        elif entry.action in BEARISH_ACTIONS and change < 0:
+        if entry.action in BULLISH_ACTIONS and change > 0 or entry.action in BEARISH_ACTIONS and change < 0:
             bucket["correct"] += 1
 
     return stats
@@ -48,7 +46,7 @@ def compute_scorecard_stats(entries: list[LoggedRecommendation], market: MarketD
 
 def build_scorecard_text(state_dir: Path, market: MarketDataProvider, since_days: int = 30) -> str:
     entries = read_log(state_dir)
-    cutoff = datetime.now(timezone.utc) - timedelta(days=since_days)
+    cutoff = datetime.now(UTC) - timedelta(days=since_days)
     entries = [e for e in entries if e.recommended_at >= cutoff]
 
     if not entries:

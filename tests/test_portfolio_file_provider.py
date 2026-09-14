@@ -1,7 +1,10 @@
 import pytest
 
 from portfolio_agent.models import Bucket, Currency
-from portfolio_agent.providers.portfolio_file import FilePortfolioProvider, PortfolioFileError
+from portfolio_agent.providers.portfolio_file import (
+    FilePortfolioProvider,
+    PortfolioFileError,
+)
 
 
 def test_loads_example_portfolio():

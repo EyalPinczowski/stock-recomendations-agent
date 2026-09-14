@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from portfolio_agent.models import RiskProfile, ScreenReport
@@ -57,7 +57,7 @@ def run_screen(
         warnings.append(f"Failed to write recommendation log: {exc}")
 
     return ScreenReport(
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
         candidates=candidates,
         warnings=warnings,
     )

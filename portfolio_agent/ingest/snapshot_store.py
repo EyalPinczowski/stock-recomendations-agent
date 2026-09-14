@@ -5,7 +5,7 @@ snapshot is archived (audit trail) before being overwritten.
 from __future__ import annotations
 
 import shutil
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from portfolio_agent.models import Holding, PortfolioSnapshot
@@ -28,11 +28,11 @@ def save_snapshot(holdings: list[Holding], state_dir: Path) -> PortfolioSnapshot
 
     path = state_dir / SNAPSHOT_FILENAME
     if path.exists():
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         shutil.copy(path, history_dir / f"{timestamp}.json")
 
     snapshot = PortfolioSnapshot(
-        holdings=holdings, captured_at=datetime.now(timezone.utc), source="screenshot"
+        holdings=holdings, captured_at=datetime.now(UTC), source="screenshot"
     )
     path.write_text(snapshot.model_dump_json(indent=2))
     return snapshot

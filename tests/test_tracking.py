@@ -1,9 +1,12 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-from portfolio_agent.models import Action, LoggedRecommendation
+from portfolio_agent.models import LoggedRecommendation
 from portfolio_agent.providers.market_mock import MockMarketDataProvider
-from portfolio_agent.tracking.log import log_recommendations, read_log
-from portfolio_agent.tracking.scorecard import build_scorecard_text, compute_scorecard_stats
+from portfolio_agent.tracking.log import read_log
+from portfolio_agent.tracking.scorecard import (
+    build_scorecard_text,
+    compute_scorecard_stats,
+)
 
 
 class _FixedPriceMarket(MockMarketDataProvider):
@@ -19,7 +22,7 @@ def test_log_and_read_roundtrip(tmp_path):
     entries = [
         LoggedRecommendation(
             ticker="AAPL", action="buy", conviction=0.6, price_at_recommendation=100.0,
-            recommended_at=datetime.now(timezone.utc), run_type="analyze",
+            recommended_at=datetime.now(UTC), run_type="analyze",
         )
     ]
     from portfolio_agent.tracking.log import _append
@@ -34,7 +37,7 @@ def test_compute_scorecard_stats_buy_correct_when_price_rose():
     entries = [
         LoggedRecommendation(
             ticker="AAPL", action="buy", conviction=0.6, price_at_recommendation=100.0,
-            recommended_at=datetime.now(timezone.utc), run_type="analyze",
+            recommended_at=datetime.now(UTC), run_type="analyze",
         )
     ]
     market = _FixedPriceMarket({"AAPL": 110.0})
@@ -53,11 +56,11 @@ def test_build_scorecard_text_with_entries(tmp_path):
     entries = [
         LoggedRecommendation(
             ticker="AAPL", action="buy", conviction=0.6, price_at_recommendation=100.0,
-            recommended_at=datetime.now(timezone.utc), run_type="analyze",
+            recommended_at=datetime.now(UTC), run_type="analyze",
         ),
         LoggedRecommendation(
             ticker="OLD", action="sell", conviction=0.6, price_at_recommendation=100.0,
-            recommended_at=datetime.now(timezone.utc) - timedelta(days=90), run_type="analyze",
+            recommended_at=datetime.now(UTC) - timedelta(days=90), run_type="analyze",
         ),
     ]
     from portfolio_agent.tracking.log import _append

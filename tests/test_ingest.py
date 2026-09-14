@@ -38,7 +38,7 @@ def test_parse_extraction_response_us_and_tase():
 
 def test_parse_extraction_response_handles_markdown_fence():
     raw = "```json\n[{\"identifier\": \"MSFT\", \"quantity\": 3, \"cost_basis\": 300, \"currency\": \"USD\"}]\n```"
-    holdings, warnings = parse_extraction_response(raw, {})
+    holdings, _warnings = parse_extraction_response(raw, {})
     assert len(holdings) == 1
     assert holdings[0].ticker == "MSFT"
 

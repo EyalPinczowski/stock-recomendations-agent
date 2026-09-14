@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 from portfolio_agent.analysis.sentiment import (
@@ -10,15 +11,14 @@ from portfolio_agent.models import (
     Action,
     AnalysisResult,
     AnalystSignal,
+    Bucket,
     MarketContextSignal,
     Recommendation,
     SentimentSignal,
     StopTakeLevels,
     TechnicalSignal,
-    Bucket,
 )
 from portfolio_agent.review.reviewer import review_candidates, review_recommendations
-from datetime import date
 
 
 class _FakeNewsProvider:
@@ -82,7 +82,7 @@ def test_build_sentiment_signals_applies_mocked_llm_response():
 
 def _make_recommendation(ticker="AAPL", action=Action.BUY):
     result = AnalysisResult(
-        ticker=ticker, as_of=date.today(), current_price=100.0,
+        ticker=ticker, as_of=datetime.now(UTC).date(), current_price=100.0,
         technical=TechnicalSignal(), analyst=AnalystSignal(), sentiment=SentimentSignal(),
         market_context=MarketContextSignal(), stop_take=StopTakeLevels(),
         composite_score=0.6, bucket=Bucket.CONSERVATIVE,

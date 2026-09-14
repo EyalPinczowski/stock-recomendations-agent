@@ -6,7 +6,7 @@ pass -> NewStockIdeasReport. Kept as its own command (not folded into
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from portfolio_agent.analysis import analyst as analyst_mod
@@ -112,7 +112,7 @@ def run_newstocks(
         warnings.append(f"Failed to write recommendation log: {exc}")
 
     return NewStockIdeasReport(
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
         gaps_identified=gaps,
         suggestions=suggestions,
         warnings=warnings,

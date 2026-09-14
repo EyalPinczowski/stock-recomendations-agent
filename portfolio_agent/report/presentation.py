@@ -7,7 +7,7 @@ of truth the other renderers use.
 from __future__ import annotations
 
 import io
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import matplotlib
@@ -338,7 +338,7 @@ def build_presentation(report, report_kind: str, output_path: str | None = None)
     builder = _BUILDERS[report_kind]
     prs = builder(report)
     if output_path is None:
-        output_path = f"{report_kind}_{datetime.now():%Y%m%d_%H%M%S}.pptx"
+        output_path = f"{report_kind}_{datetime.now(UTC):%Y%m%d_%H%M%S}.pptx"
     path = Path(output_path)
     prs.save(path)
     return path

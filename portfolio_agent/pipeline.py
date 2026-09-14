@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, datetime
 
 import pandas as pd
 
@@ -22,15 +22,19 @@ from portfolio_agent.models import (
     Holding,
     PortfolioReport,
     RebalanceSuggestion,
-    RiskProfile,
     Recommendation,
+    RiskProfile,
     SentimentSignal,
 )
 from portfolio_agent.optimization import allocation as allocation_mod
 from portfolio_agent.optimization import classify as classify_mod
 from portfolio_agent.optimization import risk_metrics as risk_metrics_mod
 from portfolio_agent.optimization import risk_reward as risk_reward_mod
-from portfolio_agent.providers.base import MarketDataProvider, NewsProvider, PortfolioProvider
+from portfolio_agent.providers.base import (
+    MarketDataProvider,
+    NewsProvider,
+    PortfolioProvider,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +90,7 @@ def _build_holding_context(
 
     analysis_result = scorer.build_analysis_result(
         ticker=holding.ticker,
-        as_of=date.today(),
+        as_of=datetime.now(UTC).date(),
         current_price=price,
         technical=technical_signal,
         analyst=analyst_signal,
@@ -240,7 +244,7 @@ def run_analyze(
         logger.warning("Failed to write recommendation log: %s", exc)
 
     return PortfolioReport(
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
         total_value=total_value,
         risk_profile=risk_profile,
         health=health,

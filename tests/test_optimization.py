@@ -1,11 +1,10 @@
 import pandas as pd
 
-from portfolio_agent.models import Bucket, RiskProfile, StopTakeLevels
+from portfolio_agent.models import Action, Bucket, RiskProfile, StopTakeLevels
 from portfolio_agent.optimization.allocation import (
     ValuedHolding,
     bucket_rebalance_suggestions,
     compute_bucket_allocation,
-    compute_sector_allocation,
     sector_concentration_suggestions,
 )
 from portfolio_agent.optimization.classify import classify_bucket
@@ -19,7 +18,6 @@ from portfolio_agent.optimization.risk_reward import (
     reward_risk_ratio,
     suggested_dollar_delta,
 )
-from portfolio_agent.models import Action
 
 
 def test_classify_high_vol_high_beta_small_cap_is_aggressive():

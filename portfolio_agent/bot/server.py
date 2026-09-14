@@ -14,7 +14,12 @@ import time
 from pathlib import Path
 
 from portfolio_agent.bot.dispatch import dispatch_command, handle_photo
-from portfolio_agent.notify.telegram import LONG_POLL_TIMEOUT, TelegramNotifier, download_file, get_updates
+from portfolio_agent.notify.telegram import (
+    LONG_POLL_TIMEOUT,
+    TelegramNotifier,
+    download_file,
+    get_updates,
+)
 from portfolio_agent.notify.telegram_offset import load_offset, save_offset
 
 logger = logging.getLogger(__name__)
