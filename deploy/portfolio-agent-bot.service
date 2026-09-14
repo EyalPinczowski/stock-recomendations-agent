@@ -1,0 +1,14 @@
+[Unit]
+Description=Portfolio Agent Telegram Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/path/to/stock-recomendations-agent
+ExecStart=/path/to/stock-recomendations-agent/.venv/bin/python -m portfolio_agent.cli bot
+Restart=on-failure
+RestartSec=10
+EnvironmentFile=/path/to/stock-recomendations-agent/.env
+
+[Install]
+WantedBy=multi-user.target
