@@ -83,3 +83,25 @@ def test_find_chat_id_times_out_with_actionable_message():
          patch("portfolio_agent.setup_wizard.time.sleep"), \
          pytest.raises(SetupError, match="Send your bot a message"):
         find_chat_id("token", timeout_seconds=0)
+
+
+def test_clean_pasted_strips_bracketed_paste_markers():
+    """Termux glues ESC[200~ / ESC[201~ onto pasted text — a pasted token must
+    survive that rather than being silently corrupted."""
+    from portfolio_agent.setup_wizard import clean_pasted
+
+    mangled = "\x1b[200~1234567890:AAHxOxnoqPjWLozlGzsf\x1b[201~"
+    assert clean_pasted(mangled) == "1234567890:AAHxOxnoqPjWLozlGzsf"
+
+
+def test_clean_pasted_strips_whitespace_and_quotes():
+    from portfolio_agent.setup_wizard import clean_pasted
+
+    assert clean_pasted('  "abc:123"  ') == "abc:123"
+    assert clean_pasted("'abc:123'\n") == "abc:123"
+
+
+def test_clean_pasted_leaves_clean_token_untouched():
+    from portfolio_agent.setup_wizard import clean_pasted
+
+    assert clean_pasted("1234567890:AAHxOxnoqPjW") == "1234567890:AAHxOxnoqPjW"

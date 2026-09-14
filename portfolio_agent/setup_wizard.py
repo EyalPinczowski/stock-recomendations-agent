@@ -5,6 +5,7 @@ the machine that will host the bot.
 
 from __future__ import annotations
 
+import re
 import sys
 import time
 from pathlib import Path
@@ -16,9 +17,18 @@ ENV_FILENAME = ".env"
 CHAT_DISCOVERY_TIMEOUT_SECONDS = 180
 POLL_INTERVAL_SECONDS = 2
 
+# Terminals (Termux especially) can glue bracketed-paste markers like ESC[200~
+# onto pasted text, which silently corrupts a pasted secret.
+_PASTE_ARTIFACTS = re.compile(r"\x1b\[[0-9;]*[a-zA-Z~]|[\x00-\x1f\x7f]")
+
 
 class SetupError(RuntimeError):
     pass
+
+
+def clean_pasted(raw: str) -> str:
+    """Strips terminal paste artifacts and surrounding whitespace/quotes."""
+    return _PASTE_ARTIFACTS.sub("", raw).strip().strip("'\"")
 
 
 def validate_token(token: str) -> str:
@@ -102,7 +112,7 @@ def run_setup(project_dir: Path | str = ".") -> None:
 
     print("Portfolio Agent — first-time setup\n")
 
-    token = input("Paste your Telegram bot token (from @BotFather): ").strip()
+    token = clean_pasted(input("Paste your Telegram bot token (from @BotFather): "))
     if not token:
         raise SetupError("No token entered.")
 
@@ -116,8 +126,8 @@ def run_setup(project_dir: Path | str = ".") -> None:
     print(f"  Got it — your chat ID is {chat_id}\n")
 
     print("Optional keys (press Enter to skip):")
-    anthropic_key = input("  ANTHROPIC_API_KEY (enables sentiment + review pass): ").strip()
-    news_key = input("  NEWS_API_KEY (better news coverage than the free source): ").strip()
+    anthropic_key = clean_pasted(input("  ANTHROPIC_API_KEY (enables sentiment + review pass): "))
+    news_key = clean_pasted(input("  NEWS_API_KEY (better news coverage than the free source): "))
 
     write_env_file(
         {
