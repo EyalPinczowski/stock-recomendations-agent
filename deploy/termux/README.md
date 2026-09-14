@@ -61,13 +61,34 @@ app degrades cleanly without either:
 | `matplotlib` | a long C build | Deck renders allocation **tables** instead of charts. Nothing else changes. |
 | `anthropic` (`.[llm]`) | **Rust**, for its `jiter` dependency | No screenshot parsing, news sentiment, or review pass. Technicals, screening, rebalancing and decks all still work. |
 
-The installer tries to install Rust and build the Anthropic SDK, but treats a
-failure as a warning rather than aborting — you end up with a working bot
-either way. To retry it on its own, with full output so a failure is
-diagnosable:
+### Getting screenshot parsing working
 
 ```bash
 bash deploy/termux/install-llm.sh
+```
+
+This tries two routes, in order:
+
+1. **Install Rust and build the real `jiter`.** The proper fix. Needs
+   Termux's `pkg install rust` — rustup can't do it, as it has no
+   `aarch64-unknown-linux-android` target.
+2. **Fall back to a pure-Python jiter shim** (`jiter_shim.py`) if that
+   build fails. It installs the *real* Anthropic SDK and replaces only its
+   `jiter` dependency.
+
+The shim works because the SDK uses jiter in exactly four places, all in
+`lib/streaming/`, for parsing partial JSON as it arrives. This app makes
+plain non-streaming calls, so that code never runs — only the import at
+module load actually fails. The shim is tested for output parity against
+the real jiter (`tests/test_jiter_shim.py`), including both partial modes,
+so streaming would still behave if something used it. It's slower, but
+nothing here is on a hot path.
+
+To switch to the real jiter later:
+
+```bash
+rm "$(python -c 'import sysconfig;print(sysconfig.get_paths()["purelib"])')/jiter.py"
+pkg install rust && pip install jiter
 ```
 
 **If the Anthropic SDK won't build, you lose screenshot ingestion** — which is
@@ -142,7 +163,7 @@ ARM VPS tier, or a Raspberry Pi) and keep using it from the same Telegram chat.
 | pandas build fails or gets killed | Out of memory. Close other apps and re-run; the build resumes from scratch but the pkg steps are instant the second time. |
 | `No module named numpy` / `pandas` after install | Re-run `bash deploy/termux/install.sh`; it detects what's missing and only rebuilds that. |
 | pydantic build hangs or gets killed | No prebuilt wheel matched your Python version, so it fell back to compiling Rust. Check the wheel index covers your Python (`python -V`). |
-| `Failed to build 'jiter'` / `Target triple not supported by rustup` | Rust isn't installed. rustup can't target Android — use Termux's. Run `bash deploy/termux/install-llm.sh`, which installs it and shows the full build output. |
+| `Failed to build 'jiter'` / `Target triple not supported by rustup` | Run `bash deploy/termux/install-llm.sh` — it installs Termux's Rust, and falls back to a pure-Python jiter shim if the build still fails. |
 | `The 'anthropic' package isn't installed` at runtime | Expected if the Rust build failed. Use `--portfolio-provider file` with a CSV, or retry `pkg install rust && pip install -e '.[llm]'`. |
 | `No module named pptx` | `pip install python-pptx` — needs `libxml2`/`libxslt` from `pkg` first. |
 | Bot replies stop when screen turns off | No wake lock. `pkg install termux-api`, and set battery to Unrestricted. |
