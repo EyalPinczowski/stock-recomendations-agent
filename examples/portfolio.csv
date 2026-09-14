@@ -1,0 +1,5 @@
+ticker,quantity,cost_basis,purchase_date,currency,bucket,notes
+AAPL,15,168.20,2023-03-14,USD,conservative,
+NVDA,8,410.50,2024-01-05,USD,aggressive,
+VOO,10,410.00,2022-11-01,USD,conservative,core index position
+TEVA.TA,200,4200,2023-06-20,ILS,conservative,

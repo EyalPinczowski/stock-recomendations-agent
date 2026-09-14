@@ -1,0 +1,33 @@
+[project]
+name = "portfolio-agent"
+version = "0.1.0"
+description = "On-demand portfolio analysis, rebalancing, and short-term screening agent, delivered as PowerPoint decks over Telegram."
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.26",
+    "yfinance>=0.2.40",
+    "anthropic>=0.34",
+    "pydantic>=2.6",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+    "requests>=2.31",
+    "python-pptx>=1.0",
+    "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-mock", "ruff", "mypy"]
+
+[project.scripts]
+portfolio-agent = "portfolio_agent.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["portfolio_agent*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
