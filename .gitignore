@@ -11,6 +11,7 @@ venv/
 
 state/*.json
 state/*.jsonl
+state/*.pid
 state/portfolio_history/*.json
 !state/.gitkeep
 !state/portfolio_history/.gitkeep

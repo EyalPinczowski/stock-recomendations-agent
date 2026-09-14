@@ -203,7 +203,7 @@ def build_portfolio_deck(report: PortfolioReport) -> Presentation:
             fig, ax = plt.subplots(figsize=(2.9, 2.9))
             labels = list(h.bucket_allocation.keys())
             values = [v * 100 for v in h.bucket_allocation.values()]
-            ax.pie(values, labels=[f"{l}\n{v:.0f}%" for l, v in zip(labels, values)], colors=["#2B6CB0", "#B0742B"][: len(labels)], textprops={"fontsize": 9})
+            ax.pie(values, labels=[f"{name}\n{v:.0f}%" for name, v in zip(labels, values)], colors=["#2B6CB0", "#B0742B"][: len(labels)], textprops={"fontsize": 9})
             ax.set_title(
                 f"Bucket allocation (target {report.risk_profile.target_conservative_pct:.0%}/{report.risk_profile.target_aggressive_pct:.0%})",
                 fontsize=9,

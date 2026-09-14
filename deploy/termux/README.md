@@ -115,6 +115,12 @@ bash deploy/termux/run-bot.sh
 This takes a wake lock, starts the bot, and restarts it with backoff if it
 dies. Logs go to `logs/bot.log`.
 
+It also refuses to start if a bot is already running — Telegram allows only one
+process per token, so a second one would just collect 409 Conflict errors. If it
+says another instance is running but you're sure it isn't (e.g. Android killed
+it mid-run), the pid file is stale and it clears it for you automatically; you
+only need `pkill -f 'portfolio_agent.cli bot'` when a real second process is up.
+
 ## Keeping it alive
 
 Android will kill this eventually unless you do all of the following:
@@ -167,5 +173,6 @@ ARM VPS tier, or a Raspberry Pi) and keep using it from the same Telegram chat.
 | `The 'anthropic' package isn't installed` at runtime | Expected if the Rust build failed. Use `--portfolio-provider file` with a CSV, or retry `pkg install rust && pip install -e '.[llm]'`. |
 | `No module named pptx` | `pip install python-pptx` — needs `libxml2`/`libxslt` from `pkg` first. |
 | `getUpdates failed (409 Client Error: Conflict)` | Two bot instances are running — Telegram allows only one per token. Stop the other: `pkill -f 'portfolio_agent.cli bot'`, then start one. |
+| `Another supervisor is already running` | The guard did its job — a bot is already up, so this one refused rather than fighting it for the token. Use the running one, or stop it with the `kill` command the message prints. |
 | Bot replies stop when screen turns off | No wake lock. `pkg install termux-api`, and set battery to Unrestricted. |
 | Deck has tables where charts should be | Expected without matplotlib. `pip install matplotlib` if you want charts. |

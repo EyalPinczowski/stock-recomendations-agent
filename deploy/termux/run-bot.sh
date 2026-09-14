@@ -6,6 +6,8 @@
 #   - takes a wake lock so the CPU isn't suspended
 #   - restarts the bot if it exits, with backoff
 #   - releases the wake lock on a clean exit
+#   - refuses to start if another bot is already running (Telegram allows only
+#     one process per token; a second one just gets 409 Conflict forever)
 #
 # It is NOT a guarantee of 24/7 uptime: Android (15 especially) can still kill
 # the process. Also set Termux to "Unrestricted" under Android's battery
@@ -20,12 +22,45 @@ cd "$PROJECT_DIR"
 
 LOG_DIR="$PROJECT_DIR/logs"
 LOG_FILE="$LOG_DIR/bot.log"
+STATE_DIR="$PROJECT_DIR/state"
+PID_FILE="$STATE_DIR/bot.pid"
 MIN_BACKOFF=5
 MAX_BACKOFF=300
 
-mkdir -p "$LOG_DIR"
+mkdir -p "$LOG_DIR" "$STATE_DIR"
 
 log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" | tee -a "$LOG_FILE"; }
+
+# --- Only one bot per token -------------------------------------------------
+# Telegram hands 409 Conflict to every process after the first, so a second
+# supervisor is never useful. Refuse early and say how to stop the other one,
+# rather than letting the bot loop on conflicts.
+
+if [ -f "$PID_FILE" ]; then
+    existing="$(cat "$PID_FILE" 2>/dev/null || true)"
+    if [ -n "$existing" ] && kill -0 "$existing" 2>/dev/null; then
+        log "Another supervisor is already running (pid $existing) — not starting a second."
+        log "Telegram allows one process per bot token; a second gets 409 Conflict."
+        log "Stop the running one first:  kill $existing"
+        exit 2
+    fi
+    log "Clearing stale pid file (pid ${existing:-unknown} is no longer running)."
+fi
+
+if command -v pgrep >/dev/null 2>&1; then
+    stray="$(pgrep -f 'portfolio_agent\.cli bot' 2>/dev/null | grep -v "^$$\$" || true)"
+    if [ -n "$stray" ]; then
+        log "A bot process is already running outside this supervisor (pid(s): $(echo $stray))."
+        log "Telegram allows one process per bot token; starting another gets 409 Conflict."
+        log "Stop it first:  pkill -f 'portfolio_agent.cli bot'"
+        exit 2
+    fi
+fi
+
+printf '%s\n' "$$" > "$PID_FILE"
+# Only claim the trap once the pid file is ours, so the guard above can never
+# delete another instance's claim on its way out.
+trap 'rm -f "$PID_FILE"' EXIT
 
 cleanup() {
     log "Shutting down; releasing wake lock."
