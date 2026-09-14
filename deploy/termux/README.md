@@ -63,7 +63,12 @@ app degrades cleanly without either:
 
 The installer tries to install Rust and build the Anthropic SDK, but treats a
 failure as a warning rather than aborting — you end up with a working bot
-either way. To retry later: `pkg install rust && pip install -e '.[llm]'`.
+either way. To retry it on its own, with full output so a failure is
+diagnosable:
+
+```bash
+bash deploy/termux/install-llm.sh
+```
 
 **If the Anthropic SDK won't build, you lose screenshot ingestion** — which is
 the normal way to get your holdings in. Fall back to a CSV:
@@ -137,7 +142,7 @@ ARM VPS tier, or a Raspberry Pi) and keep using it from the same Telegram chat.
 | pandas build fails or gets killed | Out of memory. Close other apps and re-run; the build resumes from scratch but the pkg steps are instant the second time. |
 | `No module named numpy` / `pandas` after install | Re-run `bash deploy/termux/install.sh`; it detects what's missing and only rebuilds that. |
 | pydantic build hangs or gets killed | No prebuilt wheel matched your Python version, so it fell back to compiling Rust. Check the wheel index covers your Python (`python -V`). |
-| `Failed to build 'jiter'` / `Target triple not supported by rustup` | Rust isn't installed. rustup can't target Android — use Termux's: `pkg install rust`, then `pip install -e '.[llm]'`. |
+| `Failed to build 'jiter'` / `Target triple not supported by rustup` | Rust isn't installed. rustup can't target Android — use Termux's. Run `bash deploy/termux/install-llm.sh`, which installs it and shows the full build output. |
 | `The 'anthropic' package isn't installed` at runtime | Expected if the Rust build failed. Use `--portfolio-provider file` with a CSV, or retry `pkg install rust && pip install -e '.[llm]'`. |
 | `No module named pptx` | `pip install python-pptx` — needs `libxml2`/`libxslt` from `pkg` first. |
 | Bot replies stop when screen turns off | No wake lock. `pkg install termux-api`, and set battery to Unrestricted. |

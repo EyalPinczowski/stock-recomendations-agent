@@ -109,20 +109,26 @@ pip install -e .
 # powers screenshot parsing, news sentiment, and the review pass — valuable, but
 # the rest of the app runs without it, so a failure here is a warning, not fatal.
 say "Installing the Anthropic SDK (needs Rust to build its jiter dependency)"
-if ! importable jiter; then
-    if ! command -v cargo >/dev/null 2>&1; then
-        say "Installing Rust (large download; rustup can't target Android, Termux's package can)"
-        try_pkg rust
-    fi
+if ! importable jiter && ! command -v cargo >/dev/null 2>&1; then
+    say "Installing Rust — large download; output shown so you can see progress"
+    # Deliberately NOT quiet like try_pkg: this is big, slow, and the most
+    # likely thing to fail, so you want to see what it's doing.
+    pkg install -y rust || warn "Rust install failed (see output above)."
+fi
+
+if command -v cargo >/dev/null 2>&1; then
+    printf '  rust: %s\n' "$(cargo --version 2>/dev/null || echo present)"
+else
+    warn "rust/cargo not on PATH — the jiter build below will fail."
 fi
 
 LLM_OK="yes"
 if ! pip install -e ".[llm]"; then
     LLM_OK=""
-    warn "Couldn't build the Anthropic SDK (jiter needs Rust)."
+    warn "Couldn't build the Anthropic SDK (its jiter dependency needs Rust)."
     warn "Everything except screenshot parsing, news sentiment and the review"
-    warn "pass still works. To retry later:"
-    warn "    pkg install rust && pip install -e '.[llm]'"
+    warn "pass still works. To retry and see the full error:"
+    warn "    bash deploy/termux/install-llm.sh"
 fi
 
 say "Checking the install"
@@ -159,5 +165,3 @@ if [ -z "$LLM_OK" ]; then
     warn "Use a CSV instead:  cp examples/portfolio.csv my-portfolio.csv  (then edit it)"
     warn "and run with:  --portfolio-provider file"
 fi
-
-EOF
