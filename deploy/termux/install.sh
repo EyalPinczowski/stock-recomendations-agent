@@ -30,12 +30,13 @@ say "Updating Termux packages (this can take a few minutes)"
 pkg update -y && pkg upgrade -y
 
 say "Installing build tools and libraries"
-try_pkg python git build-essential binutils cmake ninja patchelf \
-        libopenblas libandroid-execinfo libxml2 libxslt \
-        libjpeg-turbo libpng freetype
+try_pkg python git build-essential binutils binutils-is-llvm clang \
+        cmake ninja patchelf libopenblas libandroid-execinfo \
+        libxml2 libxslt libjpeg-turbo libpng freetype
 
 say "Installing native Python packages from Termux repos"
-# These MUST come from pkg — pip would try to compile them from source.
+# Prefer pkg over pip for these — pip would try to compile them from source.
+# python-pandas isn't in the Termux repos, so it gets built below instead.
 try_pkg python-numpy python-pandas python-pillow python-lxml
 
 say "Creating virtualenv (with access to the Termux-installed packages)"
@@ -44,34 +45,60 @@ python -m venv --system-site-packages .venv
 source .venv/bin/activate
 pip install --upgrade pip
 
-say "Verifying numpy/pandas are importable inside the venv"
-MISSING=""
-python - <<'PY' || MISSING="yes"
-import sys
-for module in ("numpy", "pandas"):
-    try:
-        __import__(module)
-        print(f"  ok: {module}")
-    except ImportError:
-        print(f"  MISSING: {module}", file=sys.stderr)
-        sys.exit(1)
-PY
+PYVER="$(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+say "Python $PYVER detected"
 
-if [ -n "$MISSING" ]; then
-    warn "numpy and/or pandas are missing. They could not be installed via pkg."
-    warn "See https://github.com/termux/termux-packages/discussions/19126 for"
-    warn "current build instructions, then re-run this script."
-    exit 1
+importable() { python -c "import $1" >/dev/null 2>&1; }
+
+say "Checking numpy/pandas"
+for module in numpy pandas; do
+    if importable "$module"; then
+        printf '  ok: %s\n' "$module"
+    else
+        printf '  missing: %s (will build from source)\n' "$module"
+    fi
+done
+
+if ! importable numpy || ! importable pandas; then
+    say "Installing build backends needed to compile them"
+    pip install --no-cache-dir setuptools wheel packaging pyproject_metadata \
+        cython meson-python versioneer setuptools-scm
+
+    # Termux needs to link explicitly against libpython, and numpy needs MATHLIB.
+    # --no-build-isolation makes the build use the tools installed above (and the
+    # pkg-provided numpy headers) rather than fetching its own copies.
+    export LDFLAGS="-lpython${PYVER}"
+    export MATHLIB=m
+
+    if ! importable numpy; then
+        say "Building numpy (several minutes)"
+        pip install --no-build-isolation --no-cache-dir numpy
+    fi
+
+    if ! importable pandas; then
+        say "Building pandas — this is the slow one, 10-30 min. Keep the screen on."
+        if ! pip install --no-build-isolation --no-cache-dir pandas; then
+            warn "pandas failed to build. Most common causes:"
+            warn "  - out of memory: close other apps and re-run"
+            warn "  - missing build tool: see"
+            warn "    https://github.com/termux/termux-packages/discussions/25247"
+            exit 1
+        fi
+    fi
+
+    unset LDFLAGS MATHLIB
 fi
 
 say "Installing pydantic (prebuilt Android wheels for its Rust core)"
-# pydantic-core is Rust; building it on-device takes ~15 min and often runs out
-# of memory. This third-party index publishes prebuilt Termux wheels.
-if ! pip install --extra-index-url https://eutalix.github.io/android-pydantic-core/ "pydantic>=2.6"; then
-    warn "Prebuilt pydantic-core wheel unavailable for your Python/arch."
-    warn "Falling back to building from source — install Rust first:"
+# pydantic-core is Rust; building it on-device takes ~15 min and often gets
+# OOM-killed. These third-party indexes publish prebuilt Termux wheels.
+# Goplr covers Python 3.9-3.14; Eutalix (3.9-3.13) is the fallback.
+if ! pip install --extra-index-url https://Goplr.github.io/android-pydantic-core/ "pydantic>=2.6" \
+   && ! pip install --extra-index-url https://eutalix.github.io/android-pydantic-core/ "pydantic>=2.6"; then
+    warn "No prebuilt pydantic-core wheel for Python $PYVER on this architecture."
+    warn "Build it from source instead (slow, memory-hungry):"
     warn "    pkg install rust && pip install 'pydantic>=2.6'"
-    warn "Expect ~15 minutes, and close other apps so it doesn't get OOM-killed."
+    warn "Close other apps first so it doesn't get OOM-killed."
     exit 1
 fi
 

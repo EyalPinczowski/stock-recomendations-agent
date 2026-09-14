@@ -41,11 +41,17 @@ bash deploy/termux/install.sh
 If `pkg` itself reports "command not found" even when typed by hand, use the
 `apt` it wraps: `apt update && apt install git`.
 
-The installer pulls `numpy`/`pandas`/`pillow`/`lxml` from Termux's own repos
-(never pip — pip would try to compile them), creates a venv with
+The installer pulls what it can from Termux's own repos (`numpy`, `pillow`,
+`lxml` — never pip, which would try to compile them), creates a venv with
 `--system-site-packages` so those stay visible, and installs `pydantic` from a
-[prebuilt Android wheel index](https://github.com/Eutalix/android-pydantic-core)
+[prebuilt Android wheel index](https://github.com/Goplr/android-pydantic-core)
 so its Rust core doesn't have to build on-device.
+
+**pandas has to be compiled**, because Termux doesn't package it. The installer
+handles this, but budget 10–30 minutes for that step and keep the screen on so
+Android doesn't suspend the build. It needs `LDFLAGS="-lpython<version>"` and
+`--no-build-isolation` — if you ever do it by hand, see
+[termux-packages #25247](https://github.com/termux/termux-packages/discussions/25247).
 
 **matplotlib is skipped on purpose.** It's the hardest thing to build here, and
 it's only used for the two allocation charts. Without it the deck renders those
@@ -112,8 +118,10 @@ ARM VPS tier, or a Raspberry Pi) and keep using it from the same Telegram chat.
 | `^[[200~` in front of a command, or a stray `~` at the end | Paste artifact — the command didn't run. Run one line at a time, or disable bracketed paste (see top of this file). |
 | `pkg: command not found` | If it persists when typed by hand, use `apt` instead: `apt update && apt install git`. |
 | `No module named portfolio_agent` | You're not in the repo directory, or the venv isn't active. `cd stock-recomendations-agent && source .venv/bin/activate`. |
-| `No module named numpy` / `pandas` | They didn't install from `pkg`. See [termux-packages #19126](https://github.com/termux/termux-packages/discussions/19126). |
-| pydantic build hangs or gets killed | Out of memory building Rust. Close other apps, or use the prebuilt wheel index in `install.sh`. |
+| `package not available, skipping: python-pandas` | Expected — Termux doesn't package pandas. The installer compiles it instead. |
+| pandas build fails or gets killed | Out of memory. Close other apps and re-run; the build resumes from scratch but the pkg steps are instant the second time. |
+| `No module named numpy` / `pandas` after install | Re-run `bash deploy/termux/install.sh`; it detects what's missing and only rebuilds that. |
+| pydantic build hangs or gets killed | No prebuilt wheel matched your Python version, so it fell back to compiling Rust. Check the wheel index covers your Python (`python -V`). |
 | `No module named pptx` | `pip install python-pptx` — needs `libxml2`/`libxslt` from `pkg` first. |
 | Bot replies stop when screen turns off | No wake lock. `pkg install termux-api`, and set battery to Unrestricted. |
 | Deck has tables where charts should be | Expected without matplotlib. `pip install matplotlib` if you want charts. |
