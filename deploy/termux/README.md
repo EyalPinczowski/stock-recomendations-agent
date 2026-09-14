@@ -166,5 +166,6 @@ ARM VPS tier, or a Raspberry Pi) and keep using it from the same Telegram chat.
 | `Failed to build 'jiter'` / `Target triple not supported by rustup` | Run `bash deploy/termux/install-llm.sh` — it installs Termux's Rust, and falls back to a pure-Python jiter shim if the build still fails. |
 | `The 'anthropic' package isn't installed` at runtime | Expected if the Rust build failed. Use `--portfolio-provider file` with a CSV, or retry `pkg install rust && pip install -e '.[llm]'`. |
 | `No module named pptx` | `pip install python-pptx` — needs `libxml2`/`libxslt` from `pkg` first. |
+| `getUpdates failed (409 Client Error: Conflict)` | Two bot instances are running — Telegram allows only one per token. Stop the other: `pkill -f 'portfolio_agent.cli bot'`, then start one. |
 | Bot replies stop when screen turns off | No wake lock. `pkg install termux-api`, and set battery to Unrestricted. |
 | Deck has tables where charts should be | Expected without matplotlib. `pip install matplotlib` if you want charts. |
