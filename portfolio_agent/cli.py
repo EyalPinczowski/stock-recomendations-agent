@@ -210,6 +210,12 @@ def cmd_bot(args):
     run_bot(settings)
 
 
+def cmd_setup(args):
+    from portfolio_agent.setup_wizard import run_setup
+
+    run_setup(args.project_dir)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="portfolio-agent")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -246,6 +252,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_bot = sub.add_parser("bot", help="Start the persistent Telegram listener (primary way to run this)")
     p_bot.set_defaults(func=cmd_bot)
+
+    p_setup = sub.add_parser("setup", help="First-time setup: validate bot token, find chat ID, write .env")
+    p_setup.add_argument("--project-dir", default=".", help="Where to write .env (default: current directory)")
+    p_setup.set_defaults(func=cmd_setup)
 
     return parser
 

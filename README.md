@@ -29,21 +29,27 @@ a schedule; everything happens when you ask.
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
-cp .env.example .env
 ```
 
-### 1. Create a Telegram bot
+### 1. Create a Telegram bot, then run setup
 
 1. Message [@BotFather](https://t.me/BotFather) on Telegram, send `/newbot`,
-   follow the prompts. You'll get a bot token.
-2. Message your new bot once (anything), then visit
-   `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates` in a browser to find
-   your chat ID (`message.chat.id` in the JSON).
-3. Fill in `.env`:
+   and follow the prompts. You'll get a bot token.
+2. Run the setup command and paste the token when prompted:
+
+   ```bash
+   python -m portfolio_agent.cli setup
    ```
-   TELEGRAM_BOT_TOKEN=...
-   TELEGRAM_CHAT_ID=...
-   ```
+
+   It validates the token, waits for you to send your bot a message (to
+   discover your chat ID automatically), optionally collects your API keys,
+   writes `.env` with `0600` permissions, and sends a confirmation message to
+   prove the connection works end to end.
+
+To do it by hand instead: copy `.env.example` to `.env`, and find your chat ID
+by messaging the bot then visiting
+`https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates` (look for
+`message.chat.id`).
 
 ### 2. (Optional) Enable sentiment analysis and the review pass
 
