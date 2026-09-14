@@ -131,6 +131,7 @@ def cmd_analyze(args):
         news_provider=news_provider,
         sentiment_batch_fn=_sentiment_batch_fn(settings, args.mock),
         review_fn=_review_fn(settings, args.mock, "analyze"),
+        state_dir=str(settings.state_dir),
     )
     _render_and_output(report, "analyze", args.output_format, args.output_file)
     return report
@@ -148,6 +149,7 @@ def cmd_screen(args):
         risk_profile,
         universe_path=args.universe or (settings.data_dir / "sp500_constituents.csv"),
         review_fn=_review_fn(settings, args.mock, "screen"),
+        state_dir=str(settings.state_dir),
     )
     _render_and_output(report, "screen", args.output_format, args.output_file)
     return report
@@ -167,6 +169,7 @@ def cmd_newstocks(args):
         risk_profile,
         universe_path=args.universe or (settings.data_dir / "sp500_constituents.csv"),
         review_fn=_review_fn(settings, args.mock, "newstocks"),
+        state_dir=str(settings.state_dir),
     )
     _render_and_output(report, "newstocks", args.output_format, args.output_file)
     return report

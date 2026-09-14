@@ -10,7 +10,7 @@ from portfolio_agent.report.presentation import build_presentation
 def test_build_presentation_produces_valid_pptx(tmp_path):
     provider = FilePortfolioProvider("examples/portfolio.csv")
     market = MockMarketDataProvider()
-    report = run_analyze(provider, market, RiskProfile())
+    report = run_analyze(provider, market, RiskProfile(), state_dir=str(tmp_path))
 
     out = tmp_path / "report.pptx"
     path = build_presentation(report, "analyze", str(out))

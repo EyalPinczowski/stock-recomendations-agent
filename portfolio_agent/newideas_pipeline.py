@@ -26,6 +26,7 @@ def run_newstocks(
     risk_profile: RiskProfile,
     universe_path: str | Path = "data/sp500_constituents.csv",
     review_fn=None,
+    state_dir: str = "state",
 ) -> NewStockIdeasReport:
     warnings: list[str] = []
     snapshot = portfolio_provider.get_snapshot()
@@ -102,6 +103,13 @@ def run_newstocks(
             suggestions = review_fn(suggestions, warnings)
         except Exception as exc:  # noqa: BLE001
             warnings.append(f"Review pass failed ({exc}), using unreviewed suggestions.")
+
+    try:
+        from portfolio_agent.tracking.log import log_new_stock_suggestions
+
+        log_new_stock_suggestions(suggestions, market, state_dir)
+    except Exception as exc:  # noqa: BLE001
+        warnings.append(f"Failed to write recommendation log: {exc}")
 
     return NewStockIdeasReport(
         generated_at=datetime.now(timezone.utc),

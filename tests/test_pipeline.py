@@ -4,10 +4,10 @@ from portfolio_agent.providers.market_mock import MockMarketDataProvider
 from portfolio_agent.providers.portfolio_file import FilePortfolioProvider
 
 
-def test_run_analyze_end_to_end_mock():
+def test_run_analyze_end_to_end_mock(tmp_path):
     provider = FilePortfolioProvider("examples/portfolio.csv")
     market = MockMarketDataProvider()
-    report = run_analyze(provider, market, RiskProfile())
+    report = run_analyze(provider, market, RiskProfile(), state_dir=str(tmp_path))
 
     assert report.total_value > 0
     assert len(report.holding_recommendations) == 4

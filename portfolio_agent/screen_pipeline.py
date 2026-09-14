@@ -18,6 +18,7 @@ def run_screen(
     risk_profile: RiskProfile,
     universe_path: str | Path = "data/sp500_constituents.csv",
     review_fn=None,
+    state_dir: str = "state",
 ) -> ScreenReport:
     warnings: list[str] = []
     entries = load_universe(universe_path)
@@ -47,6 +48,13 @@ def run_screen(
             candidates = review_fn(candidates, warnings)
         except Exception as exc:  # noqa: BLE001
             warnings.append(f"Review pass failed ({exc}), using unreviewed candidates.")
+
+    try:
+        from portfolio_agent.tracking.log import log_candidates
+
+        log_candidates(candidates, state_dir)
+    except Exception as exc:  # noqa: BLE001
+        warnings.append(f"Failed to write recommendation log: {exc}")
 
     return ScreenReport(
         generated_at=datetime.now(timezone.utc),

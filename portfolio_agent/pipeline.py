@@ -134,6 +134,7 @@ def run_analyze(
     news_provider: NewsProvider | None = None,
     sentiment_batch_fn=None,
     review_fn=None,
+    state_dir: str = "state",
 ) -> PortfolioReport:
     warnings: list[str] = []
     snapshot = portfolio_provider.get_snapshot()
@@ -230,6 +231,13 @@ def run_analyze(
 
     if overall_assessment is None:
         overall_assessment = _build_fallback_overall_assessment(health, recommendations, warnings)
+
+    try:
+        from portfolio_agent.tracking.log import log_recommendations
+
+        log_recommendations(recommendations, state_dir)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to write recommendation log: %s", exc)
 
     return PortfolioReport(
         generated_at=datetime.now(timezone.utc),
