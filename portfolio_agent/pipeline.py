@@ -44,20 +44,11 @@ class _HoldingContext:
     analysis_result: AnalysisResult
 
 
-def _sentiment_for(
-    ticker: str, news_provider: NewsProvider | None, sentiment_fn
-) -> SentimentSignal:
-    if sentiment_fn is not None:
-        return sentiment_fn(ticker, news_provider)
-    return SentimentSignal(degraded=True)
-
-
 def _build_holding_context(
     holding: Holding,
     market: MarketDataProvider,
     news_provider: NewsProvider | None,
     warnings: list[str],
-    sentiment_fn=None,
 ) -> _HoldingContext | None:
     try:
         df = market.get_price_history(holding.ticker)
@@ -86,7 +77,7 @@ def _build_holding_context(
     technical_signal = technical_mod.build_technical_signal(df)
     analyst_data = market.get_analyst_data(holding.ticker)
     analyst_signal = analyst_mod.build_analyst_signal(analyst_data, price)
-    sentiment_signal = _sentiment_for(holding.ticker, news_provider, sentiment_fn)
+    sentiment_signal = SentimentSignal(degraded=True)  # filled in by a batched call after all contexts are built
 
     benchmark_ticker = trend_mod.benchmark_for_sector(sector)
     benchmark_df = market.get_price_history(benchmark_ticker)
@@ -141,7 +132,7 @@ def run_analyze(
     market: MarketDataProvider,
     risk_profile: RiskProfile,
     news_provider: NewsProvider | None = None,
-    sentiment_fn=None,
+    sentiment_batch_fn=None,
     review_fn=None,
 ) -> PortfolioReport:
     warnings: list[str] = []
@@ -149,9 +140,27 @@ def run_analyze(
 
     contexts: list[_HoldingContext] = []
     for holding in snapshot.holdings:
-        ctx = _build_holding_context(holding, market, news_provider, warnings, sentiment_fn)
+        ctx = _build_holding_context(holding, market, news_provider, warnings)
         if ctx is not None:
             contexts.append(ctx)
+
+    if sentiment_batch_fn is not None and contexts:
+        try:
+            sentiment_by_ticker = sentiment_batch_fn([c.holding.ticker for c in contexts], news_provider)
+        except Exception as exc:  # noqa: BLE001
+            warnings.append(f"Sentiment analysis failed ({exc}), skipped.")
+            sentiment_by_ticker = {}
+        for c in contexts:
+            signal = sentiment_by_ticker.get(c.holding.ticker)
+            if signal is not None:
+                result = c.analysis_result
+                updated = result.model_copy(update={"sentiment": signal})
+                updated = updated.model_copy(update={
+                    "composite_score": scorer.composite_score(
+                        updated.technical, updated.analyst, updated.sentiment, updated.market_context
+                    )
+                })
+                c.analysis_result = updated
 
     total_value = sum(c.value_usd for c in contexts)
 

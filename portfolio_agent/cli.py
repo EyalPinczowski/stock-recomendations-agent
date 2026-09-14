@@ -52,26 +52,33 @@ def _build_news_provider(settings, mock: bool):
     return GDELTNewsProvider()
 
 
-def _sentiment_fn(settings, mock: bool):
+def _sentiment_batch_fn(settings, mock: bool):
     if mock or not settings.anthropic_api_key:
         return None
-    from portfolio_agent.analysis.sentiment import build_sentiment_signal_for_ticker
+    from portfolio_agent.analysis.sentiment import build_sentiment_signals
 
-    def _fn(ticker, news_provider):
-        return build_sentiment_signal_for_ticker(ticker, news_provider, settings)
+    def _fn(tickers, news_provider):
+        return build_sentiment_signals(tickers, news_provider, settings)
 
     return _fn
 
 
-def _review_fn(settings, mock: bool):
+def _review_fn(settings, mock: bool, kind: str):
     if mock or not settings.anthropic_api_key:
         return None
-    from portfolio_agent.review.reviewer import review_recommendations
+    from portfolio_agent.review import reviewer
 
-    def _fn(recommendations, health, warnings):
-        return review_recommendations(recommendations, health, warnings, settings)
-
-    return _fn
+    if kind == "analyze":
+        return lambda recommendations, health, warnings: reviewer.review_recommendations(
+            recommendations, health, warnings, settings
+        )
+    if kind == "screen":
+        return lambda candidates, warnings: reviewer.review_candidates(candidates, warnings, settings)
+    if kind == "newstocks":
+        return lambda suggestions, warnings: reviewer.review_new_stock_suggestions(
+            suggestions, warnings, settings
+        )
+    raise ValueError(f"Unknown review kind: {kind}")
 
 
 def _render_and_output(report, report_kind: str, output_format: str, output_file: str | None):
@@ -122,8 +129,8 @@ def cmd_analyze(args):
         market,
         risk_profile,
         news_provider=news_provider,
-        sentiment_fn=_sentiment_fn(settings, args.mock),
-        review_fn=_review_fn(settings, args.mock),
+        sentiment_batch_fn=_sentiment_batch_fn(settings, args.mock),
+        review_fn=_review_fn(settings, args.mock, "analyze"),
     )
     _render_and_output(report, "analyze", args.output_format, args.output_file)
     return report
@@ -140,7 +147,7 @@ def cmd_screen(args):
         market,
         risk_profile,
         universe_path=args.universe or (settings.data_dir / "sp500_constituents.csv"),
-        review_fn=_review_fn(settings, args.mock),
+        review_fn=_review_fn(settings, args.mock, "screen"),
     )
     _render_and_output(report, "screen", args.output_format, args.output_file)
     return report
@@ -159,7 +166,7 @@ def cmd_newstocks(args):
         market,
         risk_profile,
         universe_path=args.universe or (settings.data_dir / "sp500_constituents.csv"),
-        review_fn=_review_fn(settings, args.mock),
+        review_fn=_review_fn(settings, args.mock, "newstocks"),
     )
     _render_and_output(report, "newstocks", args.output_format, args.output_file)
     return report
