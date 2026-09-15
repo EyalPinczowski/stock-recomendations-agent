@@ -58,8 +58,9 @@ def test_parse_sentiment_response_handles_fenced_json():
 
 def test_build_sentiment_signals_neutral_when_no_headlines():
     class Settings:
-        anthropic_api_key = "x"
-        anthropic_model = "m"
+        llm_provider = "gemini"
+        gemini_api_key = "x"
+        gemini_model = "m"
 
     signals = build_sentiment_signals(["AAPL"], _FakeNewsProvider({}), Settings())
     assert signals["AAPL"].degraded is True
@@ -67,8 +68,9 @@ def test_build_sentiment_signals_neutral_when_no_headlines():
 
 def test_build_sentiment_signals_applies_mocked_llm_response():
     class Settings:
-        anthropic_api_key = "x"
-        anthropic_model = "m"
+        llm_provider = "gemini"
+        gemini_api_key = "x"
+        gemini_model = "m"
 
     provider = _FakeNewsProvider({"AAPL": [{"title": "Apple beats earnings"}]})
     mocked_response = json.dumps(
@@ -95,8 +97,9 @@ def _make_recommendation(ticker="AAPL", action=Action.BUY):
 
 def test_review_recommendations_downgrades_on_downgraded_verdict():
     class Settings:
-        anthropic_api_key = "x"
-        anthropic_model = "m"
+        llm_provider = "gemini"
+        gemini_api_key = "x"
+        gemini_model = "m"
 
     rec = _make_recommendation()
     mocked_response = json.dumps(
@@ -115,8 +118,9 @@ def test_review_recommendations_downgrades_on_downgraded_verdict():
 
 def test_review_recommendations_confirmed_keeps_action():
     class Settings:
-        anthropic_api_key = "x"
-        anthropic_model = "m"
+        llm_provider = "gemini"
+        gemini_api_key = "x"
+        gemini_model = "m"
 
     rec = _make_recommendation(action=Action.SELL)
     mocked_response = json.dumps({"items": [{"ticker": "AAPL", "outcome": "confirmed", "notes": "Agreed"}]})
@@ -127,8 +131,9 @@ def test_review_recommendations_confirmed_keeps_action():
 
 def test_review_recommendations_api_failure_returns_unreviewed():
     class Settings:
-        anthropic_api_key = "x"
-        anthropic_model = "m"
+        llm_provider = "gemini"
+        gemini_api_key = "x"
+        gemini_model = "m"
 
     rec = _make_recommendation()
     with patch("portfolio_agent.review.reviewer._call_review_api", side_effect=RuntimeError("boom")):
@@ -141,8 +146,9 @@ def test_review_candidates_parse_failure_returns_unreviewed():
     from portfolio_agent.models import ShortTermCandidate
 
     class Settings:
-        anthropic_api_key = "x"
-        anthropic_model = "m"
+        llm_provider = "gemini"
+        gemini_api_key = "x"
+        gemini_model = "m"
 
     candidate = ShortTermCandidate(
         ticker="NVDA", setup_score=0.6, entry_zone_low=100, entry_zone_high=105,

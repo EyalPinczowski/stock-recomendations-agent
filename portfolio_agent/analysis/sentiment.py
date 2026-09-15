@@ -1,13 +1,10 @@
-"""News/geopolitical sentiment, scored via one batched Anthropic call across
+"""News/geopolitical sentiment, scored via one batched LLM call across
 every ticker in a run (not one call per ticker) — cost stays bounded
 regardless of portfolio size. Skipped entirely (neutral, degraded=True) when
 no news provider is available or no headlines were found for a ticker.
 """
 
 from __future__ import annotations
-
-import json
-import re
 
 from portfolio_agent.models import SentimentSignal
 from portfolio_agent.providers.base import NewsProvider
@@ -34,32 +31,26 @@ def fetch_headlines_for_tickers(
 
 
 def _call_sentiment_api(ticker_headlines: dict[str, list[dict]], settings) -> str:
-    from portfolio_agent.llm import build_client
+    from portfolio_agent.llm import complete
 
-    client = build_client(settings)
     lines = []
     for ticker, headlines in ticker_headlines.items():
         titles = "; ".join(h["title"] for h in headlines[:10])
         lines.append(f"{ticker}: {titles}")
-    user_prompt = "\n".join(lines)
 
-    message = client.messages.create(
-        model=settings.anthropic_model,
-        max_tokens=2048,
+    return complete(
+        settings,
         system=SENTIMENT_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_prompt}],
+        user="\n".join(lines),
+        max_tokens=4096,
     )
-    return "".join(block.text for block in message.content if block.type == "text")
 
 
 def _parse_sentiment_response(raw_text: str) -> dict[str, dict]:
-    text = raw_text.strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```(?:json)?\n?|\n?```$", "", text.strip())
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        return {}
+    from portfolio_agent.llm import parse_json_response
+
+    parsed = parse_json_response(raw_text, default={})
+    return parsed if isinstance(parsed, dict) else {}
 
 
 def build_sentiment_signals(

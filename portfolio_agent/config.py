@@ -8,6 +8,7 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
+from portfolio_agent.llm import GEMINI_DEFAULT_MODEL
 from portfolio_agent.models import RiskProfile
 
 load_dotenv()
@@ -15,6 +16,17 @@ load_dotenv()
 
 class Settings:
     def __init__(self):
+        # Which LLM backend powers screenshot parsing, sentiment and the review
+        # pass. Gemini is the default: it needs no extra package (plain REST
+        # over requests), which matters on hosts where compiling is painful.
+        self.llm_provider: str = os.getenv("LLM_PROVIDER", "gemini").strip().lower()
+        self.gemini_api_key: str | None = (
+            os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or None
+        )
+        self.gemini_model: str = os.getenv("GEMINI_MODEL", GEMINI_DEFAULT_MODEL)
+        # Empty means "whatever the model defaults to"; MINIMAL/LOW/MEDIUM/HIGH
+        # trade answer quality for tokens on models that support thinking.
+        self.gemini_thinking_level: str = os.getenv("GEMINI_THINKING_LEVEL", "")
         self.anthropic_api_key: str | None = os.getenv("ANTHROPIC_API_KEY") or None
         self.anthropic_model: str = os.getenv("ANTHROPIC_MODEL", "claude-opus-5")
         self.news_api_key: str | None = os.getenv("NEWS_API_KEY") or None

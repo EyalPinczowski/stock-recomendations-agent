@@ -105,3 +105,41 @@ def test_clean_pasted_leaves_clean_token_untouched():
     from portfolio_agent.setup_wizard import clean_pasted
 
     assert clean_pasted("1234567890:AAHxOxnoqPjW") == "1234567890:AAHxOxnoqPjW"
+
+
+# --- Gemini key check -------------------------------------------------------
+# Setup asks Google which models the key can call rather than hard-coding one,
+# so a retired model name surfaces here instead of as a 404 mid-report.
+
+
+def test_check_gemini_key_returns_a_model_the_key_can_use():
+    from portfolio_agent.setup_wizard import check_gemini_key
+
+    with patch(
+        "portfolio_agent.llm.list_gemini_models",
+        return_value=["gemini-2.5-flash", "gemini-9.0-flash", "gemini-9.0-pro"],
+    ):
+        assert check_gemini_key("key") == "gemini-9.0-flash"
+
+
+def test_check_gemini_key_rejects_a_bad_key():
+    from portfolio_agent.setup_wizard import check_gemini_key
+
+    response = MagicMock()
+    response.status_code = 400
+    error = requests.HTTPError("400", response=response)
+
+    with patch("portfolio_agent.llm.list_gemini_models", side_effect=error):
+        with pytest.raises(SetupError, match="rejected"):
+            check_gemini_key("bad-key")
+
+
+def test_check_gemini_key_tolerates_being_offline():
+    """Setup shouldn't fail just because the check couldn't run — the default
+    model is used and the key is still written."""
+    from portfolio_agent.setup_wizard import check_gemini_key
+
+    with patch(
+        "portfolio_agent.llm.list_gemini_models", side_effect=requests.ConnectionError("offline")
+    ):
+        assert check_gemini_key("key") == ""

@@ -18,8 +18,9 @@ dependencies = [
 # Both of these are optional because they're the hardest things to install on
 # constrained hosts (Termux/Android), and the code degrades without them:
 #   charts -> deck renders allocation tables instead of charts
-#   llm    -> screenshot parsing, news sentiment, and the review pass are skipped
-# `anthropic` is here rather than in the core deps because it pulls in `jiter`,
+#   llm    -> only needed for LLM_PROVIDER=anthropic. The default Gemini backend
+#             talks REST over `requests` and needs nothing extra installed.
+# `anthropic` is an extra rather than a core dep because it pulls in `jiter`,
 # which needs a Rust toolchain to build where no wheel is published.
 charts = ["matplotlib>=3.8"]
 llm = ["anthropic>=0.34"]

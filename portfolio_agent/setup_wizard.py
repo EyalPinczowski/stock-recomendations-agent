@@ -86,6 +86,37 @@ def send_confirmation(token: str, chat_id: str) -> bool:
         return False
 
 
+def check_gemini_key(api_key: str) -> str:
+    """Confirms the key works and returns the model to use.
+
+    Model names come and go, so rather than hard-coding one and failing later
+    with a 404 mid-report, ask the API what this key can actually call.
+    Returns "" if the check couldn't run — the default is used then.
+    """
+    from portfolio_agent.llm import GEMINI_DEFAULT_MODEL, list_gemini_models, pick_gemini_model
+
+    try:
+        models = list_gemini_models(api_key)
+    except requests.HTTPError as exc:
+        status = exc.response.status_code if exc.response is not None else "?"
+        if status in (400, 401, 403):
+            raise SetupError(
+                "Google rejected that Gemini key. Check you copied all of it from "
+                "https://aistudio.google.com/apikey"
+            ) from exc
+        print(f"    Couldn't verify the key right now (HTTP {status}); using {GEMINI_DEFAULT_MODEL}.")
+        return ""
+    except requests.RequestException as exc:
+        print(f"    Couldn't reach Google to verify the key ({exc}); using {GEMINI_DEFAULT_MODEL}.")
+        return ""
+
+    model = pick_gemini_model(models)
+    if not model:
+        raise SetupError("That Gemini key works but has no usable text model available.")
+    print(f"    Key works — using {model} ({len(models)} models available).")
+    return model
+
+
 def write_env_file(values: dict[str, str], path: Path) -> None:
     """Writes/updates .env, preserving any keys already present that we aren't setting."""
     existing: dict[str, str] = {}
@@ -104,6 +135,38 @@ def write_env_file(values: dict[str, str], path: Path) -> None:
     lines.extend(f"{key}={value}" for key, value in existing.items())
     path.write_text("\n".join(lines) + "\n")
     path.chmod(0o600)
+
+
+def prompt_for_api_keys() -> dict[str, str]:
+    """Asks for the optional model/news keys and validates the Gemini one."""
+    print("Optional keys (press Enter to skip):")
+    print("  A Gemini key enables screenshot parsing, news sentiment and the review pass.")
+    print("  It's free — get one at https://aistudio.google.com/apikey")
+    gemini_key = clean_pasted(input("  GEMINI_API_KEY: "))
+    gemini_model = check_gemini_key(gemini_key) if gemini_key else ""
+
+    news_key = clean_pasted(input("  NEWS_API_KEY (better news coverage than the free source): "))
+
+    return {
+        "LLM_PROVIDER": "gemini" if gemini_key else "",
+        "GEMINI_API_KEY": gemini_key,
+        "GEMINI_MODEL": gemini_model,
+        "NEWS_API_KEY": news_key,
+    }
+
+
+def run_keys_setup(project_dir: Path | str = ".") -> None:
+    """Adds/updates just the API keys, leaving Telegram settings alone — so
+    adding a Gemini key later doesn't mean redoing the whole chat-ID dance."""
+    env_path = Path(project_dir) / ENV_FILENAME
+    print("Portfolio Agent — API keys\n")
+    values = prompt_for_api_keys()
+    if not any(values.values()):
+        print("Nothing entered; left .env unchanged.")
+        return
+    write_env_file(values, env_path)
+    print(f"\nUpdated {env_path} (permissions set to 0600).")
+    print("Restart the bot for it to pick this up.")
 
 
 def run_setup(project_dir: Path | str = ".") -> None:
@@ -125,17 +188,11 @@ def run_setup(project_dir: Path | str = ".") -> None:
     chat_id = find_chat_id(token)
     print(f"  Got it — your chat ID is {chat_id}\n")
 
-    print("Optional keys (press Enter to skip):")
-    anthropic_key = clean_pasted(input("  ANTHROPIC_API_KEY (enables sentiment + review pass): "))
-    news_key = clean_pasted(input("  NEWS_API_KEY (better news coverage than the free source): "))
-
     write_env_file(
         {
             "TELEGRAM_BOT_TOKEN": token,
             "TELEGRAM_CHAT_ID": chat_id,
-            "ANTHROPIC_API_KEY": anthropic_key,
-            "NEWS_API_KEY": news_key,
-            "ANTHROPIC_MODEL": "claude-opus-5" if anthropic_key else "",
+            **prompt_for_api_keys(),
         },
         env_path,
     )

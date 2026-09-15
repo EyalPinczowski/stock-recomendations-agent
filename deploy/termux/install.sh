@@ -105,31 +105,11 @@ fi
 say "Installing the core (pure-Python) dependencies"
 pip install -e .
 
-# The anthropic SDK needs `jiter`, which is Rust and has no Termux wheel. It
-# powers screenshot parsing, news sentiment, and the review pass — valuable, but
-# the rest of the app runs without it, so a failure here is a warning, not fatal.
-say "Installing the Anthropic SDK (needs Rust to build its jiter dependency)"
-if ! importable jiter && ! command -v cargo >/dev/null 2>&1; then
-    say "Installing Rust — large download; output shown so you can see progress"
-    # Deliberately NOT quiet like try_pkg: this is big, slow, and the most
-    # likely thing to fail, so you want to see what it's doing.
-    pkg install -y rust || warn "Rust install failed (see output above)."
-fi
-
-if command -v cargo >/dev/null 2>&1; then
-    printf '  rust: %s\n' "$(cargo --version 2>/dev/null || echo present)"
-else
-    warn "rust/cargo not on PATH — the jiter build below will fail."
-fi
-
-LLM_OK="yes"
-if ! pip install -e ".[llm]"; then
-    LLM_OK=""
-    warn "Couldn't build the Anthropic SDK (its jiter dependency needs Rust)."
-    warn "Everything except screenshot parsing, news sentiment and the review"
-    warn "pass still works. To retry and see the full error:"
-    warn "    bash deploy/termux/install-llm.sh"
-fi
+# Nothing to install for the LLM features: they run on Gemini by default, which
+# is plain REST over `requests`. That deliberately avoids the Anthropic SDK,
+# whose `jiter` dependency is Rust with no Termux wheel — the single most
+# common way this install used to fail. (`install-llm.sh` still sets that up
+# for anyone who wants LLM_PROVIDER=anthropic.)
 
 say "Checking the install"
 python - <<'PY'
@@ -141,7 +121,6 @@ for module in ["pandas", "numpy", "pydantic", "yfinance", "pptx", "requests", "y
 
 for module, missing_note in [
     ("matplotlib", "deck will use allocation tables instead of charts"),
-    ("anthropic", "screenshot parsing, sentiment and the review pass are unavailable"),
 ]:
     try:
         importlib.import_module(module)
@@ -159,9 +138,7 @@ echo "  bash deploy/termux/run-bot.sh                # start the bot (keeps it a
 echo
 echo "To verify without any API keys or network:"
 echo "  python -m portfolio_agent.cli analyze --portfolio-provider file --mock"
-if [ -z "$LLM_OK" ]; then
-    echo
-    warn "Reminder: without the Anthropic SDK you can't send portfolio screenshots."
-    warn "Use a CSV instead:  cp examples/portfolio.csv my-portfolio.csv  (then edit it)"
-    warn "and run with:  --portfolio-provider file"
-fi
+echo
+echo "Screenshot parsing, news sentiment and the review pass need a free Gemini"
+echo "key (https://aistudio.google.com/apikey). Setup asks for it, or add it later:"
+echo "  python -m portfolio_agent.cli setup --keys-only"

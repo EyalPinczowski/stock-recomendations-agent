@@ -8,6 +8,9 @@ Termux works, but two things differ from a normal Linux host:
 2. **Process lifetime.** There's no systemd, and Android kills background
    processes. `run-bot.sh` mitigates this; it can't fully solve it.
 
+The LLM features run on Gemini precisely because of (1): it's plain REST over
+`requests`, so there's nothing extra to compile on-device.
+
 ## Before you paste anything
 
 Termux often mangles multi-line pastes: the terminal's bracketed-paste markers
@@ -53,18 +56,43 @@ Android doesn't suspend the build. It needs `LDFLAGS="-lpython<version>"` and
 `--no-build-isolation` — if you ever do it by hand, see
 [termux-packages #25247](https://github.com/termux/termux-packages/discussions/25247).
 
-**Two dependencies are optional**, because both are hard to build here and the
-app degrades cleanly without either:
+**One dependency is optional**, because it's slow to build here and the app
+degrades cleanly without it:
 
 | Optional | Needs | Without it |
 |---|---|---|
 | `matplotlib` | a long C build | Deck renders allocation **tables** instead of charts. Nothing else changes. |
-| `anthropic` (`.[llm]`) | **Rust**, for its `jiter` dependency | No screenshot parsing, news sentiment, or review pass. Technicals, screening, rebalancing and decks all still work. |
 
 ### Getting screenshot parsing working
 
+Nothing to build. Screenshot parsing, news sentiment and the review pass run
+on **Gemini**, which is plain REST over `requests` — already installed. All it
+needs is a free key from
+[aistudio.google.com/apikey](https://aistudio.google.com/apikey):
+
 ```bash
-bash deploy/termux/install-llm.sh
+source .venv/bin/activate
+python -m portfolio_agent.cli setup --keys-only
+```
+
+That verifies the key against Google, picks a model your key actually has, and
+writes both to `.env` without touching your Telegram settings.
+
+This is deliberately *not* the Anthropic SDK: that needs `jiter`, which is Rust
+with no Termux wheel, and it was the single most common way installing this on
+Android failed.
+
+Without any key, screenshot ingestion is unavailable — fall back to a CSV:
+
+```bash
+cp examples/portfolio.csv my-portfolio.csv   # then edit it with your holdings
+python -m portfolio_agent.cli analyze --portfolio-provider file
+```
+
+### If you'd rather use Claude than Gemini
+
+```bash
+bash deploy/termux/install-llm.sh   # then set LLM_PROVIDER=anthropic in .env
 ```
 
 This tries two routes, in order:
@@ -89,14 +117,6 @@ To switch to the real jiter later:
 ```bash
 rm "$(python -c 'import sysconfig;print(sysconfig.get_paths()["purelib"])')/jiter.py"
 pkg install rust && pip install jiter
-```
-
-**If the Anthropic SDK won't build, you lose screenshot ingestion** — which is
-the normal way to get your holdings in. Fall back to a CSV:
-
-```bash
-cp examples/portfolio.csv my-portfolio.csv   # then edit it with your holdings
-python -m portfolio_agent.cli analyze --portfolio-provider file
 ```
 
 ## Connect Telegram
@@ -169,8 +189,10 @@ ARM VPS tier, or a Raspberry Pi) and keep using it from the same Telegram chat.
 | pandas build fails or gets killed | Out of memory. Close other apps and re-run; the build resumes from scratch but the pkg steps are instant the second time. |
 | `No module named numpy` / `pandas` after install | Re-run `bash deploy/termux/install.sh`; it detects what's missing and only rebuilds that. |
 | pydantic build hangs or gets killed | No prebuilt wheel matched your Python version, so it fell back to compiling Rust. Check the wheel index covers your Python (`python -V`). |
-| `Failed to build 'jiter'` / `Target triple not supported by rustup` | Run `bash deploy/termux/install-llm.sh` — it installs Termux's Rust, and falls back to a pure-Python jiter shim if the build still fails. |
-| `The 'anthropic' package isn't installed` at runtime | Expected if the Rust build failed. Use `--portfolio-provider file` with a CSV, or retry `pkg install rust && pip install -e '.[llm]'`. |
+| `Failed to build 'jiter'` / `Target triple not supported by rustup` | Only affects the optional Anthropic backend. Either ignore it (Gemini is the default and needs nothing built), or run `bash deploy/termux/install-llm.sh`. |
+| `GEMINI_API_KEY is not set` | Get a free key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey), then `python -m portfolio_agent.cli setup --keys-only`. |
+| `Gemini has no model called ...` | The model name in `.env` was retired. Re-run `setup --keys-only` — it asks Google what your key can call and writes that. |
+| `Gemini rate-limited this request` | Free-tier requests-per-minute cap. Wait a minute and ask again; a report only makes a couple of calls. |
 | `No module named pptx` | `pip install python-pptx` — needs `libxml2`/`libxslt` from `pkg` first. |
 | `getUpdates failed (409 Client Error: Conflict)` | Two bot instances are running — Telegram allows only one per token. Stop the other: `pkill -f 'portfolio_agent.cli bot'`, then start one. |
 | `Another supervisor is already running` | The guard did its job — a bot is already up, so this one refused rather than fighting it for the token. Use the running one, or stop it with the `kill` command the message prints. |

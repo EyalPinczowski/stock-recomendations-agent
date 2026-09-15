@@ -55,7 +55,9 @@ def _build_news_provider(settings, mock: bool):
 
 
 def _sentiment_batch_fn(settings, mock: bool):
-    if mock or not settings.anthropic_api_key:
+    from portfolio_agent.llm import llm_available
+
+    if mock or not llm_available(settings):
         return None
     from portfolio_agent.analysis.sentiment import build_sentiment_signals
 
@@ -66,7 +68,9 @@ def _sentiment_batch_fn(settings, mock: bool):
 
 
 def _review_fn(settings, mock: bool, kind: str):
-    if mock or not settings.anthropic_api_key:
+    from portfolio_agent.llm import llm_available
+
+    if mock or not llm_available(settings):
         return None
     from portfolio_agent.review import reviewer
 
@@ -211,9 +215,12 @@ def cmd_bot(args):
 
 
 def cmd_setup(args):
-    from portfolio_agent.setup_wizard import run_setup
+    from portfolio_agent.setup_wizard import run_keys_setup, run_setup
 
-    run_setup(args.project_dir)
+    if args.keys_only:
+        run_keys_setup(args.project_dir)
+    else:
+        run_setup(args.project_dir)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -255,6 +262,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_setup = sub.add_parser("setup", help="First-time setup: validate bot token, find chat ID, write .env")
     p_setup.add_argument("--project-dir", default=".", help="Where to write .env (default: current directory)")
+    p_setup.add_argument(
+        "--keys-only",
+        action="store_true",
+        help="Only add/update the API keys (Gemini, news) — skips the Telegram steps",
+    )
     p_setup.set_defaults(func=cmd_setup)
 
     return parser

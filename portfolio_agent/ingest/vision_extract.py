@@ -1,6 +1,6 @@
-"""Extracts holdings from a portfolio screenshot via the Anthropic vision API,
-then resolves each identifier to a Yahoo Finance-compatible ticker: US tickers
-pass through as-is, TASE names/security numbers are looked up in
+"""Extracts holdings from a portfolio screenshot via the configured vision
+model (Gemini by default — see portfolio_agent/llm.py), then resolves each
+identifier to a Yahoo Finance-compatible ticker: US tickers pass through as-is, TASE names/security numbers are looked up in
 data/tase_ticker_map.csv (OCR/vision alone can't reliably produce
 exchange-correct symbols). An unmatched TASE entry is kept with
 bucket=UNCLASSIFIED and a warning rather than silently dropped.
@@ -9,7 +9,6 @@ bucket=UNCLASSIFIED and a warning rather than silently dropped.
 from __future__ import annotations
 
 import csv
-import json
 import re
 from pathlib import Path
 
@@ -54,50 +53,37 @@ def _resolve_ticker(identifier: str, currency: str, ticker_map: dict[str, str]) 
 
 
 def _call_vision_api(image_bytes: bytes, media_type: str, settings) -> str:
-    import base64
+    from portfolio_agent.llm import ImagePart, complete
 
-    from portfolio_agent.llm import build_client
-
-    client = build_client(settings)
-    message = client.messages.create(
-        model=settings.anthropic_model,
-        max_tokens=2048,
+    return complete(
+        settings,
         system=EXTRACTION_SYSTEM_PROMPT,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": base64.standard_b64encode(image_bytes).decode(),
-                        },
-                    },
-                    {"type": "text", "text": "Extract the holdings table from this screenshot."},
-                ],
-            }
-        ],
+        user="Extract the holdings table from this screenshot.",
+        image=ImagePart(data=image_bytes, media_type=media_type),
+        max_tokens=4096,
     )
-    return "".join(block.text for block in message.content if block.type == "text")
 
 
 def parse_extraction_response(
     raw_text: str, ticker_map: dict[str, str]
 ) -> tuple[list[Holding], list[str]]:
-    warnings: list[str] = []
-    text = raw_text.strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```(?:json)?\n?|\n?```$", "", text.strip())
+    from portfolio_agent.llm import parse_json_response, strip_json_fences
 
-    try:
-        rows = json.loads(text)
-    except json.JSONDecodeError:
-        return [], [f"Could not parse vision response as JSON: {text[:200]!r}"]
+    warnings: list[str] = []
+    rows = parse_json_response(raw_text, default=None)
+    if rows is None:
+        return [], [
+            f"Could not parse vision response as JSON: {strip_json_fences(raw_text)[:200]!r}"
+        ]
+    if isinstance(rows, dict):
+        # Some models wrap the array in an object despite the prompt.
+        rows = next((v for v in rows.values() if isinstance(v, list)), [])
 
     holdings: list[Holding] = []
     for row in rows:
+        if not isinstance(row, dict):
+            warnings.append(f"Skipped malformed row: {row!r}")
+            continue
         identifier = str(row.get("identifier", "")).strip()
         quantity = row.get("quantity")
         if not identifier or quantity is None:

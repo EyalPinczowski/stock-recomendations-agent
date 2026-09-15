@@ -1,4 +1,4 @@
-"""Second-opinion critique pass: one batched Anthropic call per report run
+"""Second-opinion critique pass: one batched LLM call per report run
 questions every draft recommendation/candidate/suggestion against its own
 evidence, checks for better alternatives, and (on analyze runs) writes the
 portfolio-level overall_assessment narrative — all in the same response, no
@@ -9,7 +9,6 @@ or downgraded (never upgraded past what the deterministic scorer allowed).
 from __future__ import annotations
 
 import json
-import re
 
 from portfolio_agent.models import Action, ReviewVerdict
 
@@ -48,30 +47,24 @@ def _build_item_payload(ticker: str, label: str, rationale: str, extra: dict) ->
 
 
 def _call_review_api(items_payload: list[dict], include_overall_assessment: bool, settings) -> str:
-    from portfolio_agent.llm import build_client
+    from portfolio_agent.llm import complete
 
-    client = build_client(settings)
     system = (
         REVIEW_SYSTEM_PROMPT_WITH_ASSESSMENT if include_overall_assessment else REVIEW_SYSTEM_PROMPT_ITEMS_ONLY
     )
-    user_prompt = json.dumps(items_payload, default=str)
-    message = client.messages.create(
-        model=settings.anthropic_model,
-        max_tokens=4096,
+    return complete(
+        settings,
         system=system,
-        messages=[{"role": "user", "content": user_prompt}],
+        user=json.dumps(items_payload, default=str),
+        max_tokens=8192,
     )
-    return "".join(block.text for block in message.content if block.type == "text")
 
 
 def _parse_review_response(raw_text: str) -> dict:
-    text = raw_text.strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```(?:json)?\n?|\n?```$", "", text.strip())
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        return {}
+    from portfolio_agent.llm import parse_json_response
+
+    parsed = parse_json_response(raw_text, default={})
+    return parsed if isinstance(parsed, dict) else {}
 
 
 def review_recommendations(recommendations, health, warnings, settings):

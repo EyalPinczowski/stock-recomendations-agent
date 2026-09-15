@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 from portfolio_agent.ingest.snapshot_store import load_snapshot, save_snapshot
 from portfolio_agent.ingest.vision_extract import (
@@ -78,3 +79,43 @@ def test_screenshot_provider_reads_saved_snapshot(tmp_path):
     provider = ScreenshotPortfolioProvider(tmp_path / "current_portfolio.json")
     snapshot = provider.get_snapshot()
     assert snapshot.holdings[0].ticker == "AAPL"
+
+
+def test_extract_holdings_from_image_end_to_end_over_gemini(tmp_path, monkeypatch):
+    """The whole screenshot path with only the HTTP call faked: a real-shaped
+    Gemini response in, resolved Holdings out."""
+    from unittest.mock import MagicMock
+
+    from portfolio_agent import llm
+    from portfolio_agent.ingest.vision_extract import extract_holdings_from_image
+
+    rows = [
+        {"identifier": "AAPL", "quantity": 10, "cost_basis": 180.5, "currency": "USD"},
+        {"identifier": "טבע", "quantity": 200, "cost_basis": None, "currency": "ILS"},
+    ]
+    response = MagicMock()
+    response.status_code = 200
+    response.json.return_value = {
+        "candidates": [
+            {"content": {"parts": [{"text": json.dumps(rows)}]}, "finishReason": "STOP"}
+        ]
+    }
+    post = MagicMock(return_value=response)
+    monkeypatch.setattr(llm.requests, "post", post)
+
+    class Settings:
+        llm_provider = "gemini"
+        gemini_api_key = "k"
+        gemini_model = "gemini-3.8-flash"
+        gemini_thinking_level = ""
+        data_dir = Path("data")
+
+    holdings, warnings = extract_holdings_from_image(b"\xff\xd8jpeg", Settings())
+
+    assert [h.ticker for h in holdings] == ["AAPL", "TEVA.TA"]
+    assert holdings[0].quantity == 10
+    assert holdings[1].currency == Currency.ILS
+    assert holdings[1].cost_basis == 0.0  # not visible in the screenshot
+    assert warnings == []
+    # The screenshot itself actually went up with the prompt.
+    assert "inlineData" in post.call_args.kwargs["json"]["contents"][0]["parts"][0]

@@ -28,14 +28,16 @@ a schedule; everything happens when you ask.
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[charts,llm,dev]"
+pip install -e ".[charts,dev]"
 ```
 
-Both extras are optional and the app degrades cleanly without them: `charts`
-is matplotlib for the deck's allocation charts (falls back to tables), and
-`llm` is the Anthropic SDK for screenshot parsing, news sentiment and the
-review pass (those features are skipped without it). Skip either on hosts
-where they're hard to build. On Android, use
+The LLM features (screenshot parsing, news sentiment, the review pass) run on
+**Gemini** by default and need no extra package — the calls go over plain REST
+using `requests`, which is already a core dependency. All you add is a key.
+
+`charts` (matplotlib, for the deck's allocation charts) is optional and falls
+back to tables; skip it on hosts where it's hard to build. The `llm` extra is
+only needed if you switch the backend to Anthropic (see below). On Android, use
 [`deploy/termux/install.sh`](deploy/termux/README.md) instead.
 
 ### 1. Create a Telegram bot, then run setup
@@ -58,16 +60,37 @@ by messaging the bot then visiting
 `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates` (look for
 `message.chat.id`).
 
-### 2. (Optional) Enable sentiment analysis and the review pass
+### 2. (Optional) Enable screenshot parsing, sentiment and the review pass
 
-Without an Anthropic key, `/analyze` still runs fully — it just skips news
-sentiment and the second-opinion review pass (including the narrative
-assessment, which falls back to a short deterministic summary).
+These three features need a model. Get a **free Gemini API key** at
+[aistudio.google.com/apikey](https://aistudio.google.com/apikey) and add it:
 
 ```
-ANTHROPIC_API_KEY=...
-ANTHROPIC_MODEL=claude-opus-5
+GEMINI_API_KEY=...
 ```
+
+Or let setup do it for you, without redoing the Telegram steps:
+
+```bash
+python -m portfolio_agent.cli setup --keys-only
+```
+
+That verifies the key against Google and writes the model name it picked, so a
+retired model name surfaces immediately instead of as a 404 mid-report.
+
+Without a key, `/analyze` still runs fully on the deterministic pipeline — it
+just skips news sentiment and the second-opinion review pass (the narrative
+assessment falls back to a short deterministic summary), and **screenshot
+ingestion is unavailable**, so holdings have to come from a CSV
+(`--portfolio-provider file`).
+
+Optional knobs:
+
+| Variable | Default | What it does |
+|---|---|---|
+| `GEMINI_MODEL` | `gemini-3.8-flash` | Which model to call. Setup fills this in with one your key actually has. |
+| `GEMINI_THINKING_LEVEL` | unset | `MINIMAL`/`LOW`/`MEDIUM`/`HIGH` on models that support it — lower spends fewer tokens. Unset uses the model's own default. |
+| `LLM_PROVIDER` | `gemini` | Set to `anthropic` to use Claude instead (needs `pip install -e ".[llm]"` plus `ANTHROPIC_API_KEY`, and `ANTHROPIC_MODEL` to pick the model). |
 
 ### 3. (Optional) Better news coverage
 
