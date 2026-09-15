@@ -11,6 +11,10 @@ Termux works, but two things differ from a normal Linux host:
 The LLM features run on Gemini precisely because of (1): it's plain REST over
 `requests`, so there's nothing extra to compile on-device.
 
+A third, smaller one: Android ships no IANA time-zone database that Python can
+read, which yfinance needs for every quote. `install.sh` installs the `tzdata`
+package to supply it.
+
 ## Before you paste anything
 
 Termux often mangles multi-line pastes: the terminal's bracketed-paste markers
@@ -195,6 +199,7 @@ ARM VPS tier, or a Raspberry Pi) and keep using it from the same Telegram chat.
 | `Gemini rate-limited this request` | Free-tier requests-per-minute cap. Wait a minute and ask again; a report only makes a couple of calls. |
 | `This model is currently experiencing high demand` (503) | Google-side load on that model. The agent retries, then automatically tries other models your key has, so this only surfaces when they're all busy — wait a minute and resend. Pin specific alternates with `GEMINI_FALLBACK_MODELS` if you prefer. |
 | `No module named pptx` | `pip install python-pptx` — needs `libxml2`/`libxslt` from `pkg` first. |
+| `No time zone found with key America/New_York` | Android's time-zone database is in a format Python can't read, so every market-data call fails. `pip install tzdata` (the installer now does this for you). |
 | `getUpdates failed (409 Client Error: Conflict)` | Two bot instances are running — Telegram allows only one per token. Stop the other: `pkill -f 'portfolio_agent.cli bot'`, then start one. |
 | `Another supervisor is already running` | The guard did its job — a bot is already up, so this one refused rather than fighting it for the token. Use the running one, or stop it with the `kill` command the message prints. |
 | Bot replies stop when screen turns off | No wake lock. `pkg install termux-api`, and set battery to Unrestricted. |

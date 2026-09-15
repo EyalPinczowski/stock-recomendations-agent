@@ -12,6 +12,10 @@ dependencies = [
     "python-dotenv>=1.0",
     "requests>=2.31",
     "python-pptx>=1.0",
+    # Not optional in practice: Android/Termux has no IANA time-zone database
+    # that Python can read, and yfinance needs one for every quote. pandas only
+    # declares tzdata on Windows, so nothing else pulls it in there.
+    "tzdata>=2024.1",
 ]
 
 [project.optional-dependencies]

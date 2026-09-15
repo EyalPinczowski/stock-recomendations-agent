@@ -35,7 +35,17 @@ def _build_market_provider(mock: bool):
         from portfolio_agent.providers.market_mock import MockMarketDataProvider
 
         return MockMarketDataProvider()
-    from portfolio_agent.providers.market_yfinance import YFinanceMarketDataProvider
+    from portfolio_agent.providers.market_yfinance import (
+        MissingTimeZoneDataError,
+        YFinanceMarketDataProvider,
+        check_timezone_database,
+    )
+
+    # Fail here with the fix rather than as twenty identical per-ticker
+    # warnings that look like bad symbols.
+    problem = check_timezone_database()
+    if problem:
+        raise MissingTimeZoneDataError(problem)
 
     return YFinanceMarketDataProvider()
 
@@ -217,8 +227,6 @@ def cmd_bot(args):
 def cmd_check_tickers(args):
     """Prices each ticker so an unmapped or wrong symbol shows up here rather
     than as a silently missing holding in a report."""
-    from portfolio_agent.providers.market_yfinance import YFinanceMarketDataProvider
-
     tickers = args.tickers
     if not tickers:
         from portfolio_agent.ingest.snapshot_store import load_snapshot
@@ -230,7 +238,7 @@ def cmd_check_tickers(args):
             return
         tickers = [h.ticker for h in snapshot.holdings]
 
-    market = YFinanceMarketDataProvider()
+    market = _build_market_provider(mock=False)
     failures = 0
     for ticker in tickers:
         try:

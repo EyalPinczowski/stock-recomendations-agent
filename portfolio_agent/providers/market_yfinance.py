@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import time
+import zoneinfo
 
 import pandas as pd
 import yfinance as yf
@@ -19,17 +20,45 @@ logger = logging.getLogger(__name__)
 RETRY_ATTEMPTS = 3
 RETRY_BASE_DELAY = 1.5
 
+TZDATA_HINT = (
+    "No time-zone database found, so yfinance can't timestamp market data. "
+    "Android/Termux ships one in a format Python can't read. Fix it with:  "
+    "pip install tzdata"
+)
+
+
+class MissingTimeZoneDataError(RuntimeError):
+    """The host has no IANA time-zone database. Deterministic, not transient —
+    every market data call will fail the same way until it's installed."""
+
 
 def _retry(fn, *args, **kwargs):
     last_exc = None
     for attempt in range(RETRY_ATTEMPTS):
         try:
             return fn(*args, **kwargs)
+        except zoneinfo.ZoneInfoNotFoundError as exc:
+            # Retrying this just wastes time — it will never succeed.
+            raise MissingTimeZoneDataError(TZDATA_HINT) from exc
         except Exception as exc:  # noqa: BLE001 - yfinance raises assorted exceptions
             last_exc = exc
             if attempt < RETRY_ATTEMPTS - 1:
                 time.sleep(RETRY_BASE_DELAY * (2**attempt))
     logger.warning("yfinance call failed after %d attempts: %s", RETRY_ATTEMPTS, last_exc)
+    return None
+
+
+def check_timezone_database() -> str | None:
+    """Returns an actionable message if market data can't work here, else None.
+
+    Checked up front because the failure surfaces deep inside yfinance as a
+    per-ticker warning, which reads like a bad symbol rather than a missing
+    package — every holding fails and nothing says why.
+    """
+    try:
+        zoneinfo.ZoneInfo("America/New_York")
+    except zoneinfo.ZoneInfoNotFoundError:
+        return TZDATA_HINT
     return None
 
 

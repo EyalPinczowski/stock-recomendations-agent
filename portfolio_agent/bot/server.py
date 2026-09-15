@@ -87,6 +87,14 @@ def run_bot(settings) -> None:
     state_dir = Path(settings.state_dir)
     offset = load_offset(state_dir)
 
+    from portfolio_agent.providers.market_yfinance import check_timezone_database
+
+    problem = check_timezone_database()
+    if problem:
+        # The bot still runs — screenshots and /status work — but every report
+        # would fail, so this needs saying now rather than on the first one.
+        logger.error("Market data will not work: %s", problem)
+
     logger.info("Bot started — long-polling Telegram for messages.")
     conflicts = 0
     batch = _PhotoBatch()

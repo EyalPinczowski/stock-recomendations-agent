@@ -105,6 +105,14 @@ fi
 say "Installing the core (pure-Python) dependencies"
 pip install -e .
 
+# Android's time-zone database is in a Bionic-specific format Python can't
+# read, and pandas only pulls tzdata in on Windows — without it every single
+# market data call fails with "No time zone found with key America/New_York".
+if ! importable tzdata; then
+    say "Installing tzdata (Android has no time-zone database Python can read)"
+    pip install tzdata
+fi
+
 # Nothing to install for the LLM features: they run on Gemini by default, which
 # is plain REST over `requests`. That deliberately avoids the Anthropic SDK,
 # whose `jiter` dependency is Rust with no Termux wheel — the single most
@@ -118,6 +126,14 @@ import importlib
 for module in ["pandas", "numpy", "pydantic", "yfinance", "pptx", "requests", "yaml", "dotenv"]:
     importlib.import_module(module)
     print(f"  ok: {module}")
+
+import zoneinfo
+
+try:
+    zoneinfo.ZoneInfo("America/New_York")
+    print("  ok: time-zone database")
+except zoneinfo.ZoneInfoNotFoundError:
+    print("  NO time-zone database — market data will fail. Fix: pip install tzdata")
 
 for module, missing_note in [
     ("matplotlib", "deck will use allocation tables instead of charts"),
