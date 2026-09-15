@@ -32,6 +32,9 @@ GEMINI_DEFAULT_MODEL = "gemini-3.8-flash"
 REQUEST_TIMEOUT_SECONDS = 180
 MAX_ATTEMPTS = 3
 BACKOFF_BASE_SECONDS = 2
+# How many other models to fall back to when the configured one is overloaded.
+MAX_FALLBACK_MODELS = 2
+OVERLOADED_STATUSES = (429, 500, 502, 503, 504)
 
 ANTHROPIC_INSTALL_HINT = (
     "LLM_PROVIDER is 'anthropic' but the 'anthropic' package isn't installed.\n"
@@ -46,6 +49,11 @@ ANTHROPIC_INSTALL_HINT = (
 class LLMUnavailableError(RuntimeError):
     """Raised when an LLM-backed feature is used but can't reach a model —
     no key, missing package, or the API refused the request."""
+
+
+class LLMOverloadedError(LLMUnavailableError):
+    """The model is busy or rate-limited rather than misconfigured. Worth
+    trying a different model, which a wrong key or bad request never is."""
 
 
 # Kept so older imports/messages keep working; the Anthropic path raises it too.
@@ -214,14 +222,51 @@ def _gemini_post(url: str, headers: dict, body: dict) -> dict:
             payload = {}
 
         message = _gemini_error_message(response.status_code, payload, model)
-        if response.status_code in (429, 500, 502, 503, 504) and attempt < MAX_ATTEMPTS - 1:
-            logger.warning("Gemini %s — retrying.", response.status_code)
-            time.sleep(BACKOFF_BASE_SECONDS * (2**attempt))
-            last_error = message
-            continue
+        if response.status_code in OVERLOADED_STATUSES:
+            if attempt < MAX_ATTEMPTS - 1:
+                logger.warning("Gemini %s on %s — retrying.", response.status_code, model)
+                time.sleep(BACKOFF_BASE_SECONDS * (2**attempt))
+                last_error = message
+                continue
+            raise LLMOverloadedError(message)
         raise LLMUnavailableError(message)
 
     raise LLMUnavailableError(last_error or "Gemini request failed.")
+
+
+_discovered_models: list[str] | None = None
+
+
+def _fallback_models(settings, primary: str) -> list[str]:
+    """Other models to try when `primary` is busy.
+
+    Configured ones win; otherwise ask the API what this key has, since model
+    names are retired often enough that a hard-coded list would rot. The
+    lookup only happens on the failure path, and is cached per process.
+    """
+    global _discovered_models
+
+    configured = getattr(settings, "gemini_fallback_models", "") or ""
+    if configured.strip():
+        named = [m.strip() for m in configured.split(",") if m.strip() and m.strip() != primary]
+        return named[:MAX_FALLBACK_MODELS]
+
+    if _discovered_models is None:
+        try:
+            _discovered_models = list_gemini_models(settings.gemini_api_key)
+        except requests.RequestException as exc:
+            logger.warning("Couldn't list Gemini models for a fallback: %s", exc)
+            _discovered_models = []
+
+    chosen: list[str] = []
+    remaining = [m for m in _discovered_models if m != primary]
+    while remaining and len(chosen) < MAX_FALLBACK_MODELS:
+        pick = pick_gemini_model(remaining, preferred="")
+        if not pick:
+            break
+        chosen.append(pick)
+        remaining.remove(pick)
+    return chosen
 
 
 def _complete_gemini(
@@ -234,7 +279,46 @@ def _complete_gemini(
             "Keys are free at https://aistudio.google.com/apikey."
         )
 
-    model = getattr(settings, "gemini_model", None) or GEMINI_DEFAULT_MODEL
+    primary = getattr(settings, "gemini_model", None) or GEMINI_DEFAULT_MODEL
+
+    def attempt(model: str) -> str:
+        return _complete_gemini_once(
+            settings, model, api_key, system, user, image, max_tokens, json_only
+        )
+
+    try:
+        return attempt(primary)
+    except LLMOverloadedError as exc:
+        # Only now is it worth finding out what else this key can call.
+        last_overload = exc
+        logger.warning("%s is busy — trying another model.", primary)
+
+    tried = [primary]
+    for model in _fallback_models(settings, primary):
+        tried.append(model)
+        try:
+            return attempt(model)
+        except LLMOverloadedError as exc:
+            last_overload = exc
+            logger.warning("%s is busy too.", model)
+
+    raise LLMOverloadedError(
+        f"Every Gemini model tried is busy right now ({', '.join(tried)}). "
+        "That's usually short-lived — try again in a minute. "
+        f"(last error: {last_overload})"
+    )
+
+
+def _complete_gemini_once(
+    settings,
+    model: str,
+    api_key: str,
+    system: str,
+    user: str,
+    image: ImagePart | None,
+    max_tokens: int,
+    json_only: bool,
+) -> str:
     url = f"{GEMINI_API_BASE}/models/{model}:generateContent"
     headers = {"x-goog-api-key": api_key, "Content-Type": "application/json"}
 
@@ -286,13 +370,30 @@ def _model_sort_key(name: str) -> tuple:
 def pick_gemini_model(available: list[str], preferred: str = GEMINI_DEFAULT_MODEL) -> str | None:
     """Chooses a sensible default: the preferred model if the key has it, else
     the newest plain 'flash' (cheap, vision-capable, generous free tier)."""
-    if preferred in available:
+    if preferred and preferred in available:
         return preferred
 
+    # Text-in/text-out only: the same family also publishes image, audio,
+    # speech and embedding models, none of which can answer these prompts.
     def usable(name: str) -> bool:
+        if not name.startswith("gemini-"):
+            return False
         return not any(
             word in name
-            for word in ("embedding", "aqa", "imagen", "tts", "image-generation", "live", "gemma")
+            for word in (
+                "embedding",
+                "aqa",
+                "imagen",
+                "tts",
+                "image",
+                "audio",
+                "live",
+                "omni",
+                "veo",
+                "robotics",
+                "computer-use",
+                "guard",
+            )
         )
 
     flash = [m for m in available if "flash" in m and "lite" not in m and usable(m)]

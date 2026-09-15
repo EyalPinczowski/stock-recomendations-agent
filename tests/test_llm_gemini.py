@@ -244,3 +244,126 @@ def test_parse_json_response_tolerates_markdown_fences():
 
 def test_strip_json_fences_leaves_plain_json_alone():
     assert llm.strip_json_fences(json.dumps({"a": 1})) == '{"a": 1}'
+
+
+# --- overload fallback ------------------------------------------------------
+# A popular model gets busy (503 "high demand"). Trying a sibling model beats
+# failing the whole request, which is what actually happened in practice.
+
+# What the models list really returns — used so the fallback picker is tested
+# against the shape of names Google actually publishes.
+REAL_MODEL_NAMES = [
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-preview-tts",
+    "gemini-flash-latest",
+    "gemini-flash-lite-latest",
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-flash-image",
+    "gemini-3-flash-preview",
+    "gemini-3.1-flash-lite",
+    "gemini-3.1-flash-image",
+    "gemini-3.5-flash",
+    "gemini-omni-flash-preview",
+    "gemini-3.6-flash",
+    "gemini-3.7-flash",
+    "gemini-3.8-flash",
+]
+
+
+@pytest.fixture(autouse=True)
+def _clear_model_cache(monkeypatch):
+    monkeypatch.setattr(llm, "_discovered_models", None)
+
+
+def _busy(status=503):
+    return _response(status, {"error": {"message": "This model is currently experiencing high demand."}})
+
+
+def _models_called(post):
+    return [call.args[0].rsplit("/", 1)[-1].split(":")[0] for call in post.call_args_list]
+
+
+def test_falls_back_to_another_model_when_the_first_is_busy(post, monkeypatch):
+    monkeypatch.setattr(llm, "list_gemini_models", lambda _k: REAL_MODEL_NAMES)
+    post.side_effect = [_busy()] * llm.MAX_ATTEMPTS + [_ok('{"ok": true}')]
+
+    assert llm.complete(_Settings(), system="s", user="u") == '{"ok": true}'
+
+    tried = _models_called(post)
+    assert tried[:llm.MAX_ATTEMPTS] == ["gemini-3.8-flash"] * llm.MAX_ATTEMPTS
+    assert tried[-1] == "gemini-3.7-flash"  # newest sibling that isn't the one that's busy
+
+
+def test_reports_clearly_when_every_model_is_busy(post, monkeypatch):
+    monkeypatch.setattr(llm, "list_gemini_models", lambda _k: REAL_MODEL_NAMES)
+    post.return_value = _busy()
+
+    with pytest.raises(llm.LLMOverloadedError) as exc:
+        llm.complete(_Settings(), system="s", user="u")
+
+    message = str(exc.value)
+    assert "busy" in message
+    assert "try again in a minute" in message
+    assert "gemini-3.8-flash" in message  # says what it actually tried
+    assert len(set(_models_called(post))) == 1 + llm.MAX_FALLBACK_MODELS
+
+
+def test_rate_limiting_also_falls_back(post, monkeypatch):
+    """429 on the free tier is per-model, so another model may well answer."""
+    monkeypatch.setattr(llm, "list_gemini_models", lambda _k: REAL_MODEL_NAMES)
+    post.side_effect = [_response(429, {"error": {"message": "Quota exceeded"}})] * llm.MAX_ATTEMPTS + [
+        _ok("answer")
+    ]
+
+    assert llm.complete(_Settings(), system="s", user="u") == "answer"
+
+
+def test_configuration_errors_do_not_try_other_models(post, monkeypatch):
+    """A bad key or bad request fails the same way everywhere — retrying it on
+    three models would just waste a minute."""
+    discovery = MagicMock(return_value=REAL_MODEL_NAMES)
+    monkeypatch.setattr(llm, "list_gemini_models", discovery)
+    post.return_value = _response(400, {"error": {"message": "API key not valid."}})
+
+    with pytest.raises(llm.LLMUnavailableError):
+        llm.complete(_Settings(), system="s", user="u")
+
+    assert len(_models_called(post)) == 1
+    discovery.assert_not_called()
+
+
+def test_explicit_fallback_list_is_used_without_asking_the_api(post, monkeypatch):
+    discovery = MagicMock(return_value=REAL_MODEL_NAMES)
+    monkeypatch.setattr(llm, "list_gemini_models", discovery)
+    settings = _Settings()
+    settings.gemini_fallback_models = "gemini-2.5-flash, gemini-3.8-flash"
+    post.side_effect = [_busy()] * llm.MAX_ATTEMPTS + [_ok("answer")]
+
+    assert llm.complete(settings, system="s", user="u") == "answer"
+
+    discovery.assert_not_called()
+    assert _models_called(post)[-1] == "gemini-2.5-flash"
+    # The model that's already busy isn't queued up again.
+    assert _models_called(post).count("gemini-3.8-flash") == llm.MAX_ATTEMPTS
+
+
+def test_fallback_survives_a_failed_model_lookup(post, monkeypatch):
+    """If the models list can't be fetched, the original error still surfaces
+    rather than being replaced by a lookup failure."""
+    monkeypatch.setattr(
+        llm, "list_gemini_models", MagicMock(side_effect=requests.ConnectionError("offline"))
+    )
+    post.return_value = _busy()
+
+    with pytest.raises(llm.LLMOverloadedError, match="busy"):
+        llm.complete(_Settings(), system="s", user="u")
+
+
+def test_fallback_picker_skips_image_speech_and_omni_models():
+    """These share the gemini- prefix but can't answer a text prompt."""
+    picked = llm.pick_gemini_model([m for m in REAL_MODEL_NAMES if m != "gemini-3.8-flash"],
+                                   preferred="")
+    assert picked == "gemini-3.7-flash"
+
+    for name in ("gemini-2.5-flash-image", "gemini-2.5-flash-preview-tts", "gemini-omni-flash-preview"):
+        assert llm.pick_gemini_model([name], preferred="") is None

@@ -90,6 +90,7 @@ Optional knobs:
 |---|---|---|
 | `GEMINI_MODEL` | `gemini-3.8-flash` | Which model to call. Setup fills this in with one your key actually has. |
 | `GEMINI_THINKING_LEVEL` | unset | `MINIMAL`/`LOW`/`MEDIUM`/`HIGH` on models that support it — lower spends fewer tokens. Unset uses the model's own default. |
+| `GEMINI_FALLBACK_MODELS` | unset | Models to try when the main one returns 503 "high demand". Unset means the agent asks your key what else it can call, only at the moment it needs one. |
 | `LLM_PROVIDER` | `gemini` | Set to `anthropic` to use Claude instead (needs `pip install -e ".[llm]"` plus `ANTHROPIC_API_KEY`, and `ANTHROPIC_MODEL` to pick the model). |
 
 ### 3. (Optional) Better news coverage

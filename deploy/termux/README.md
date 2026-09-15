@@ -193,6 +193,7 @@ ARM VPS tier, or a Raspberry Pi) and keep using it from the same Telegram chat.
 | `GEMINI_API_KEY is not set` | Get a free key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey), then `python -m portfolio_agent.cli setup --keys-only`. |
 | `Gemini has no model called ...` | The model name in `.env` was retired. Re-run `setup --keys-only` — it asks Google what your key can call and writes that. |
 | `Gemini rate-limited this request` | Free-tier requests-per-minute cap. Wait a minute and ask again; a report only makes a couple of calls. |
+| `This model is currently experiencing high demand` (503) | Google-side load on that model. The agent retries, then automatically tries other models your key has, so this only surfaces when they're all busy — wait a minute and resend. Pin specific alternates with `GEMINI_FALLBACK_MODELS` if you prefer. |
 | `No module named pptx` | `pip install python-pptx` — needs `libxml2`/`libxslt` from `pkg` first. |
 | `getUpdates failed (409 Client Error: Conflict)` | Two bot instances are running — Telegram allows only one per token. Stop the other: `pkill -f 'portfolio_agent.cli bot'`, then start one. |
 | `Another supervisor is already running` | The guard did its job — a bot is already up, so this one refused rather than fighting it for the token. Use the running one, or stop it with the `kill` command the message prints. |

@@ -27,6 +27,9 @@ class Settings:
         # Empty means "whatever the model defaults to"; MINIMAL/LOW/MEDIUM/HIGH
         # trade answer quality for tokens on models that support thinking.
         self.gemini_thinking_level: str = os.getenv("GEMINI_THINKING_LEVEL", "")
+        # Comma-separated models to try when the main one is overloaded. Empty
+        # means "ask the API what else this key has" at the time it happens.
+        self.gemini_fallback_models: str = os.getenv("GEMINI_FALLBACK_MODELS", "")
         self.anthropic_api_key: str | None = os.getenv("ANTHROPIC_API_KEY") or None
         self.anthropic_model: str = os.getenv("ANTHROPIC_MODEL", "claude-opus-5")
         self.news_api_key: str | None = os.getenv("NEWS_API_KEY") or None
