@@ -47,7 +47,10 @@ def _build_market_provider(mock: bool):
     if problem:
         raise MissingTimeZoneDataError(problem)
 
-    return YFinanceMarketDataProvider()
+    from portfolio_agent.providers.market_composite import CompositeMarketDataProvider
+
+    # Yahoo for everything it carries, TASE's own API for Israeli listings.
+    return CompositeMarketDataProvider(YFinanceMarketDataProvider())
 
 
 def _build_news_provider(settings, mock: bool):
@@ -246,15 +249,20 @@ def cmd_check_tickers(args):
         except Exception as exc:  # noqa: BLE001
             logger.debug("Pricing %s failed: %s", ticker, exc)
             price = None
+        source = market.source_name(ticker) if hasattr(market, "source_name") else "?"
         if price:
-            print(f"  ok    {ticker:14} {price:,.2f}")
+            print(f"  ok    {ticker:14} {price:>12,.2f}   via {source}")
         else:
             failures += 1
-            print(f"  FAIL  {ticker:14} no price data — check the symbol on finance.yahoo.com")
+            print(f"  FAIL  {ticker:14} {'no price data':>12}   via {source}")
 
     print(f"\n{len(tickers) - failures}/{len(tickers)} priced.")
     if failures:
-        print("Add a correct symbol for each failure to data/tase_ticker_map.csv.")
+        print(
+            "For a Yahoo failure, check the symbol on finance.yahoo.com and map it in\n"
+            "data/tase_ticker_map.csv. For a TASE failure, check the security number is\n"
+            'the one the broker shows as מספר ני"ע.'
+        )
 
 
 def cmd_setup(args):

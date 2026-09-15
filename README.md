@@ -202,11 +202,22 @@ via `/help` for a reminder of what each field does, or just edit
 
 ### `data/tase_ticker_map.csv`
 
-TASE holdings have to be translated into Yahoo Finance symbols. Most need no
-work: Israeli funds show a security number in the app (`מספר ני"ע 1159714`),
-and Yahoo lists them under exactly that number plus `.TA`, which happens
-automatically. This file is for the rest — Hebrew company names with a letter
-symbol on Yahoo:
+Israeli holdings don't go through Yahoo at all — its coverage of Tel Aviv
+listings is unreliable — so `.TA` tickers with a numeric security number are
+served from **TASE's own API** instead (`providers/market_tase.py`). It's keyed
+by the `מספר ני"ע` the broker's app already shows, so no symbol translation is
+needed and no API key is involved.
+
+Two things follow from that:
+
+- **Prices arrive in agorot** and are converted to shekels, so everything
+  downstream is in one unit.
+- **No analyst consensus** — TASE doesn't publish one. That signal degrades to
+  neutral for Israeli holdings; technicals, trend, stop/take levels and
+  rebalancing all work normally.
+
+This file is only for Israeli holdings that have *no* security number — a
+Hebrew company name that needs a Yahoo letter symbol:
 
 ```csv
 identifier,yahoo_ticker,notes
@@ -221,6 +232,9 @@ before trusting it:
 python -m portfolio_agent.cli check-tickers            # everything in the current snapshot
 python -m portfolio_agent.cli check-tickers 1159714.TA TEVA.TA
 ```
+
+It prints which source answered for each ticker (`via tase` / `via yahoo`), so
+a failure points at the right fix.
 
 ### `data/sp500_constituents.csv`
 
