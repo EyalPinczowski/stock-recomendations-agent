@@ -21,3 +21,4 @@ logs/*.log
 
 *.pptx
 !tests/fixtures/*.pptx
+state/reports/

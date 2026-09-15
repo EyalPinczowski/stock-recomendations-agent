@@ -200,6 +200,7 @@ ARM VPS tier, or a Raspberry Pi) and keep using it from the same Telegram chat.
 | `This model is currently experiencing high demand` (503) | Google-side load on that model. The agent retries, then automatically tries other models your key has, so this only surfaces when they're all busy — wait a minute and resend. Pin specific alternates with `GEMINI_FALLBACK_MODELS` if you prefer. |
 | `No module named pptx` | `pip install python-pptx` — needs `libxml2`/`libxslt` from `pkg` first. |
 | `No time zone found with key America/New_York` | Android's time-zone database is in a format Python can't read, so every market-data call fails. `pip install tzdata` (the installer now does this for you). |
+| `PermissionError: /tmp/...pptx` | Fixed — decks are written to `state/reports/` now, since Android has no `/tmp`. `git pull` and restart. |
 | Israeli holdings show no price | They don't use Yahoo — `.TA` tickers with a security number go to TASE's own API. Run `python -m portfolio_agent.cli check-tickers`; it prints `via tase` or `via yahoo` per ticker so you can see which side failed. |
 | `getUpdates failed (409 Client Error: Conflict)` | Two bot instances are running — Telegram allows only one per token. Stop the other: `pkill -f 'portfolio_agent.cli bot'`, then start one. |
 | `Another supervisor is already running` | The guard did its job — a bot is already up, so this one refused rather than fighting it for the token. Use the running one, or stop it with the `kill` command the message prints. |

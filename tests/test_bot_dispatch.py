@@ -96,3 +96,62 @@ def test_status_lists_the_tickers_and_cash_it_parsed(tmp_path):
     assert "CEG" in text and "1159714.TA" in text
     assert "8,561.64 USD" in text
     assert "-897.31 ILS" in text
+
+
+# --- where decks get written ------------------------------------------------
+# /tmp doesn't exist on Android, so a hardcoded path there failed after the
+# whole analysis had already run — the most expensive possible place to fail.
+
+
+def test_decks_are_written_under_the_state_directory(tmp_path):
+    from portfolio_agent.bot.dispatch import _report_path
+
+    class Settings:
+        state_dir = tmp_path / "state"
+
+    path = _report_path(Settings(), "analyze")
+
+    assert path.parent == tmp_path / "state" / "reports"
+    assert path.parent.is_dir()  # created, not assumed
+    assert path.name.startswith("analyze_") and path.suffix == ".pptx"
+
+
+def test_report_paths_do_not_collide(tmp_path):
+    from portfolio_agent.bot.dispatch import _report_path
+
+    class Settings:
+        state_dir = tmp_path
+
+    assert _report_path(Settings(), "analyze") != _report_path(Settings(), "screen")
+
+
+def test_old_decks_are_pruned_but_recent_ones_kept(tmp_path):
+    """They'd otherwise accumulate forever on a phone."""
+    import os
+
+    from portfolio_agent.bot.dispatch import REPORTS_TO_KEEP, _prune_old_reports
+
+    directory = tmp_path / "reports"
+    directory.mkdir()
+    for i in range(REPORTS_TO_KEEP + 5):
+        deck = directory / f"analyze_{i:03d}.pptx"
+        deck.write_bytes(b"x")
+        os.utime(deck, (i, i))  # oldest first
+
+    class Settings:
+        state_dir = tmp_path
+
+    _prune_old_reports(Settings())
+
+    remaining = sorted(p.name for p in directory.glob("*.pptx"))
+    assert len(remaining) == REPORTS_TO_KEEP
+    assert remaining[-1] == f"analyze_{REPORTS_TO_KEEP + 4:03d}.pptx"  # newest survives
+
+
+def test_pruning_a_missing_directory_is_harmless(tmp_path):
+    from portfolio_agent.bot.dispatch import _prune_old_reports
+
+    class Settings:
+        state_dir = tmp_path / "nothing-here"
+
+    _prune_old_reports(Settings())  # must not raise

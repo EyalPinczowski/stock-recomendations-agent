@@ -92,6 +92,29 @@ def handle_photo(image_bytes: bytes, settings, notifier: TelegramNotifier) -> No
     handle_photos([image_bytes], settings, notifier)
 
 
+REPORTS_DIRNAME = "reports"
+REPORTS_TO_KEEP = 10
+
+
+def _report_path(settings, kind: str) -> Path:
+    """Decks are written under the state directory, not /tmp.
+
+    Android has no /tmp, and TMPDIR differs per host — but the state directory
+    is already known-writable (the portfolio snapshot lives there). Keeping the
+    last few also means a deck can be re-sent without re-running the analysis.
+    """
+    directory = Path(settings.state_dir) / REPORTS_DIRNAME
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory / f"{kind}_{datetime.now(UTC):%Y%m%d_%H%M%S}.pptx"
+
+
+def _prune_old_reports(settings) -> None:
+    directory = Path(settings.state_dir) / REPORTS_DIRNAME
+    decks = sorted(directory.glob("*.pptx"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for stale in decks[REPORTS_TO_KEEP:]:
+        stale.unlink(missing_ok=True)
+
+
 def _run_report_command(kind: str, settings, notifier: TelegramNotifier) -> None:
     risk_profile = load_risk_profile(settings.risk_profile_path)
     market = _build_market_provider(mock=False)
@@ -132,8 +155,9 @@ def _run_report_command(kind: str, settings, notifier: TelegramNotifier) -> None
     else:
         raise ValueError(f"Unknown report kind: {kind}")
 
-    path = build_presentation(report, kind, output_path=f"/tmp/{kind}_{datetime.now(UTC):%Y%m%d_%H%M%S}.pptx")
+    path = build_presentation(report, kind, output_path=str(_report_path(settings, kind)))
     notifier.send_document(str(path), caption=f"{kind} report")
+    _prune_old_reports(settings)
 
 
 def dispatch_command(text: str, settings, notifier: TelegramNotifier) -> None:
