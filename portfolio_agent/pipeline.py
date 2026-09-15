@@ -250,6 +250,7 @@ def run_analyze(
         health=health,
         holding_recommendations=recommendations,
         rebalance_suggestions=rebalance_suggestions,
+        cash_balances=snapshot.cash_balances,
         overall_assessment=overall_assessment,
         warnings=warnings,
     )

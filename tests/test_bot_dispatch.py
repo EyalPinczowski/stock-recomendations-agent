@@ -69,3 +69,30 @@ def test_dispatch_does_not_crash_the_loop_when_telegram_send_also_fails(tmp_path
 
     with patch("portfolio_agent.bot.dispatch._run_report_command", side_effect=RuntimeError("boom")):
         dispatch_command("/analyze", settings, notifier)  # should not raise
+
+
+def test_status_lists_the_tickers_and_cash_it_parsed(tmp_path):
+    """A wrong holding count is the clearest sign a screenshot was missed, so
+    /status has to show what was actually read — not just how many."""
+    from portfolio_agent.bot.dispatch import _build_status_text
+    from portfolio_agent.ingest.snapshot_store import save_snapshot
+    from portfolio_agent.models import Currency, Holding
+
+    save_snapshot(
+        [
+            Holding(ticker="CEG", quantity=12, cost_basis=281.01),
+            Holding(ticker="1159714.TA", quantity=489, cost_basis=39.7, currency=Currency.ILS),
+        ],
+        tmp_path,
+        {"USD": 8561.64, "ILS": -897.31},
+    )
+
+    class Settings:
+        state_dir = tmp_path
+
+    text = _build_status_text(Settings())
+
+    assert "2 holdings" in text
+    assert "CEG" in text and "1159714.TA" in text
+    assert "8,561.64 USD" in text
+    assert "-897.31 ILS" in text

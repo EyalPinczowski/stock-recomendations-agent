@@ -22,6 +22,9 @@ class Currency(str, Enum):
 
 class Holding(BaseModel):
     ticker: str
+    # As shown by the broker. TASE funds are listed under an opaque security
+    # number, so the Hebrew name is the only human-readable label there.
+    name: str | None = None
     quantity: float
     cost_basis: float
     purchase_date: date | None = None
@@ -35,6 +38,10 @@ class PortfolioSnapshot(BaseModel):
     holdings: list[Holding]
     captured_at: datetime
     source: Literal["screenshot", "file"]
+    # Uninvested balances by currency, e.g. {"USD": 8561.64, "ILS": -897.31}.
+    # Not part of allocation math (that's about invested capital) but it's what
+    # says how much is actually available to act on a BUY.
+    cash_balances: dict[str, float] = Field(default_factory=dict)
 
 
 class RiskProfile(BaseModel):
@@ -162,6 +169,10 @@ class PortfolioReport(BaseModel):
     health: PortfolioHealth
     holding_recommendations: list[Recommendation]
     rebalance_suggestions: list[RebalanceSuggestion]
+    # Uninvested balances by currency, carried through from the snapshot: the
+    # allocation percentages are about invested capital, but what's available
+    # to fund a BUY belongs in the report.
+    cash_balances: dict[str, float] = Field(default_factory=dict)
     overall_assessment: str | None = None
     warnings: list[str] = Field(default_factory=list)
 

@@ -214,6 +214,41 @@ def cmd_bot(args):
     run_bot(settings)
 
 
+def cmd_check_tickers(args):
+    """Prices each ticker so an unmapped or wrong symbol shows up here rather
+    than as a silently missing holding in a report."""
+    from portfolio_agent.providers.market_yfinance import YFinanceMarketDataProvider
+
+    tickers = args.tickers
+    if not tickers:
+        from portfolio_agent.ingest.snapshot_store import load_snapshot
+
+        settings = get_settings()
+        snapshot = load_snapshot(settings.state_dir)
+        if snapshot is None:
+            print("No portfolio snapshot yet — pass tickers explicitly, or send a screenshot first.")
+            return
+        tickers = [h.ticker for h in snapshot.holdings]
+
+    market = YFinanceMarketDataProvider()
+    failures = 0
+    for ticker in tickers:
+        try:
+            price = market.get_current_price(ticker)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Pricing %s failed: %s", ticker, exc)
+            price = None
+        if price:
+            print(f"  ok    {ticker:14} {price:,.2f}")
+        else:
+            failures += 1
+            print(f"  FAIL  {ticker:14} no price data — check the symbol on finance.yahoo.com")
+
+    print(f"\n{len(tickers) - failures}/{len(tickers)} priced.")
+    if failures:
+        print("Add a correct symbol for each failure to data/tase_ticker_map.csv.")
+
+
 def cmd_setup(args):
     from portfolio_agent.setup_wizard import run_keys_setup, run_setup
 
@@ -259,6 +294,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_bot = sub.add_parser("bot", help="Start the persistent Telegram listener (primary way to run this)")
     p_bot.set_defaults(func=cmd_bot)
+
+    p_check = sub.add_parser(
+        "check-tickers", help="Check that tickers actually price on Yahoo (verifies the TASE map)"
+    )
+    p_check.add_argument("tickers", nargs="*", help="Tickers to check; defaults to the current snapshot's")
+    p_check.set_defaults(func=cmd_check_tickers)
 
     p_setup = sub.add_parser("setup", help="First-time setup: validate bot token, find chat ID, write .env")
     p_setup.add_argument("--project-dir", default=".", help="Where to write .env (default: current directory)")

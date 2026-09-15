@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import requests
@@ -103,7 +104,7 @@ def complete(
     *,
     system: str,
     user: str,
-    image: ImagePart | None = None,
+    images: Sequence[ImagePart] = (),
     max_tokens: int = 2048,
     json_only: bool = True,
 ) -> str:
@@ -113,32 +114,31 @@ def complete(
     callers still tolerate markdown fences, since not every model honours it.
     """
     if provider_name(settings) == "anthropic":
-        return _complete_anthropic(settings, system, user, image, max_tokens)
-    return _complete_gemini(settings, system, user, image, max_tokens, json_only)
+        return _complete_anthropic(settings, system, user, images, max_tokens)
+    return _complete_gemini(settings, system, user, images, max_tokens, json_only)
 
 
 # --- Gemini (REST, no extra dependency) -------------------------------------
 
 
-def _gemini_parts(user: str, image: ImagePart | None) -> list[dict]:
-    parts: list[dict] = []
-    if image is not None:
-        import base64
+def _gemini_parts(user: str, images: Sequence[ImagePart]) -> list[dict]:
+    import base64
 
-        parts.append(
-            {
-                "inlineData": {
-                    "mimeType": image.media_type,
-                    "data": base64.standard_b64encode(image.data).decode(),
-                }
+    parts: list[dict] = [
+        {
+            "inlineData": {
+                "mimeType": image.media_type,
+                "data": base64.standard_b64encode(image.data).decode(),
             }
-        )
+        }
+        for image in images
+    ]
     parts.append({"text": user})
     return parts
 
 
 def _gemini_body(
-    system: str, user: str, image: ImagePart | None, max_tokens: int, json_only: bool, settings
+    system: str, user: str, images: Sequence[ImagePart], max_tokens: int, json_only: bool, settings
 ) -> dict:
     generation_config: dict = {
         "temperature": 0,
@@ -153,7 +153,7 @@ def _gemini_body(
 
     return {
         "systemInstruction": {"parts": [{"text": system}]},
-        "contents": [{"role": "user", "parts": _gemini_parts(user, image)}],
+        "contents": [{"role": "user", "parts": _gemini_parts(user, images)}],
         "generationConfig": generation_config,
     }
 
@@ -270,7 +270,7 @@ def _fallback_models(settings, primary: str) -> list[str]:
 
 
 def _complete_gemini(
-    settings, system: str, user: str, image: ImagePart | None, max_tokens: int, json_only: bool
+    settings, system: str, user: str, images: Sequence[ImagePart], max_tokens: int, json_only: bool
 ) -> str:
     api_key = getattr(settings, "gemini_api_key", None)
     if not api_key:
@@ -283,7 +283,7 @@ def _complete_gemini(
 
     def attempt(model: str) -> str:
         return _complete_gemini_once(
-            settings, model, api_key, system, user, image, max_tokens, json_only
+            settings, model, api_key, system, user, images, max_tokens, json_only
         )
 
     try:
@@ -315,21 +315,21 @@ def _complete_gemini_once(
     api_key: str,
     system: str,
     user: str,
-    image: ImagePart | None,
+    images: Sequence[ImagePart],
     max_tokens: int,
     json_only: bool,
 ) -> str:
     url = f"{GEMINI_API_BASE}/models/{model}:generateContent"
     headers = {"x-goog-api-key": api_key, "Content-Type": "application/json"}
 
-    body = _gemini_body(system, user, image, max_tokens, json_only, settings)
+    body = _gemini_body(system, user, images, max_tokens, json_only, settings)
     text, finish_reason = _gemini_text(_gemini_post(url, headers, body))
 
     # Thinking models spend the output budget before answering; one retry with
     # more room is cheaper than losing the whole report stage.
     if not text.strip() and finish_reason == "MAX_TOKENS":
         logger.warning("Gemini hit the output limit before answering — retrying with more room.")
-        body = _gemini_body(system, user, image, max_tokens * 2, json_only, settings)
+        body = _gemini_body(system, user, images, max_tokens * 2, json_only, settings)
         text, finish_reason = _gemini_text(_gemini_post(url, headers, body))
 
     if not text.strip():
@@ -423,24 +423,23 @@ def build_client(settings):
 
 
 def _complete_anthropic(
-    settings, system: str, user: str, image: ImagePart | None, max_tokens: int
+    settings, system: str, user: str, images: Sequence[ImagePart], max_tokens: int
 ) -> str:
+    import base64
+
     client = build_client(settings)
 
-    content: list[dict] = []
-    if image is not None:
-        import base64
-
-        content.append(
-            {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": image.media_type,
-                    "data": base64.standard_b64encode(image.data).decode(),
-                },
-            }
-        )
+    content: list[dict] = [
+        {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": image.media_type,
+                "data": base64.standard_b64encode(image.data).decode(),
+            },
+        }
+        for image in images
+    ]
     content.append({"type": "text", "text": user})
 
     message = client.messages.create(

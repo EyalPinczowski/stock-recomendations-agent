@@ -21,7 +21,9 @@ def load_snapshot(state_dir: Path) -> PortfolioSnapshot | None:
     return PortfolioSnapshot.model_validate_json(path.read_text())
 
 
-def save_snapshot(holdings: list[Holding], state_dir: Path) -> PortfolioSnapshot:
+def save_snapshot(
+    holdings: list[Holding], state_dir: Path, cash_balances: dict[str, float] | None = None
+) -> PortfolioSnapshot:
     state_dir = Path(state_dir)
     history_dir = state_dir / HISTORY_DIRNAME
     history_dir.mkdir(parents=True, exist_ok=True)
@@ -32,7 +34,10 @@ def save_snapshot(holdings: list[Holding], state_dir: Path) -> PortfolioSnapshot
         shutil.copy(path, history_dir / f"{timestamp}.json")
 
     snapshot = PortfolioSnapshot(
-        holdings=holdings, captured_at=datetime.now(UTC), source="screenshot"
+        holdings=holdings,
+        captured_at=datetime.now(UTC),
+        source="screenshot",
+        cash_balances=cash_balances or {},
     )
     path.write_text(snapshot.model_dump_json(indent=2))
     return snapshot

@@ -132,8 +132,28 @@ dependencies install differently there (no manylinux wheels), and there's a
 
 ### First use
 
-Send a screenshot of your portfolio to the bot, then send `/analyze`. If you
-haven't sent a screenshot yet, `/analyze` will tell you to.
+Scroll through your holdings and send the bot a screenshot of each screenful —
+as many as it takes to cover the portfolio. They're read **together** as one
+portfolio a few seconds after the last one arrives, so overlapping rows are
+fine (duplicates are merged). Sending `/analyze` immediately also closes the
+batch, so you don't have to wait.
+
+Then `/status` to check it read everything — it lists the tickers it found.
+If the count looks short, send the missing screenful again.
+
+#### What it reads, and what it works out
+
+Meitav Trade shows no share count and no cost basis, so both are derived from
+what *is* on screen:
+
+| Shown | Used for |
+|---|---|
+| Position value ÷ price | the share count (comes out whole for real positions) |
+| Price ÷ (1 + total return %) | what you paid per share |
+| TASE price ÷ 100 | agorot → shekels, since the app values positions in shekels |
+
+Currency balances (`דולר ארה"ב`, `יתרות`) are recorded as cash rather than
+holdings, and non-tradable rows like `מגן מס` are skipped with a note.
 
 ## Local testing / manual CLI use
 
@@ -146,6 +166,7 @@ python -m portfolio_agent.cli screen --mock --output-format pptx --output-file s
 python -m portfolio_agent.cli newstocks --portfolio-provider file --mock
 python -m portfolio_agent.cli scorecard --since 30
 python -m portfolio_agent.cli ingest-portfolio
+python -m portfolio_agent.cli check-tickers
 ```
 
 `--mock` swaps in fixture-backed/synthetic data providers so everything runs
@@ -181,10 +202,11 @@ via `/help` for a reminder of what each field does, or just edit
 
 ### `data/tase_ticker_map.csv`
 
-If your portfolio includes TASE (Israeli exchange) stocks, screenshot
-parsing needs to translate what your broker's app shows (a Hebrew company
-name or TASE security number) into a Yahoo Finance-compatible ticker (a
-`.TA` suffix) — OCR/vision alone can't do this reliably. Add rows as needed:
+TASE holdings have to be translated into Yahoo Finance symbols. Most need no
+work: Israeli funds show a security number in the app (`מספר ני"ע 1159714`),
+and Yahoo lists them under exactly that number plus `.TA`, which happens
+automatically. This file is for the rest — Hebrew company names with a letter
+symbol on Yahoo:
 
 ```csv
 identifier,yahoo_ticker,notes
@@ -192,7 +214,13 @@ identifier,yahoo_ticker,notes
 ```
 
 An unmapped identifier isn't silently dropped — it shows up as a warning in
-your next report so you notice and can add it.
+your next report so you notice and can add it. To confirm a symbol prices
+before trusting it:
+
+```bash
+python -m portfolio_agent.cli check-tickers            # everything in the current snapshot
+python -m portfolio_agent.cli check-tickers 1159714.TA TEVA.TA
+```
 
 ### `data/sp500_constituents.csv`
 

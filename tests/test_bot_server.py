@@ -121,3 +121,107 @@ def test_recovery_after_conflict_resets_the_counter(tmp_path, monkeypatch, caplo
 
     detailed = [r for r in caplog.records if "pkill" in r.getMessage()]
     assert len(detailed) == 2
+
+
+# --- screenshot batching ----------------------------------------------------
+# A portfolio doesn't fit in one screenshot. Reading each photo on its own
+# would leave the snapshot holding only whatever the last image showed.
+
+
+def _photo_update(update_id, file_id):
+    return {
+        "update_id": update_id,
+        "message": {"chat": {"id": "chat"}, "photo": [{"file_id": file_id, "file_size": 100}]},
+    }
+
+
+def _text_update(update_id, text):
+    return {"update_id": update_id, "message": {"chat": {"id": "chat"}, "text": text}}
+
+
+@pytest.fixture
+def batched(monkeypatch):
+    """Runs the loop with downloads and handlers faked, returning what the
+    screenshot handler was called with."""
+    monkeypatch.setattr(server, "download_file", lambda _t, file_id: file_id.encode())
+    monkeypatch.setattr(server, "TelegramNotifier", MagicMock())
+    handled = []
+    monkeypatch.setattr(server, "handle_photos", lambda images, *_a: handled.append(images))
+    monkeypatch.setattr(server, "dispatch_command", MagicMock())
+    return handled
+
+
+def test_photos_arriving_together_are_read_as_one_portfolio(batched, tmp_path, monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr(server.time, "monotonic", lambda: clock[0])
+
+    _run_until(
+        _Settings(),
+        [[_photo_update(1, "a"), _photo_update(2, "b"), _photo_update(3, "c")], []],
+        tmp_path,
+        monkeypatch,
+    )
+
+    assert batched == [], "nothing should be read while more photos may still arrive"
+
+
+def test_batch_is_read_once_the_photos_stop(batched, tmp_path, monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr(server.time, "monotonic", lambda: clock[0])
+
+    calls = [[_photo_update(1, "a"), _photo_update(2, "b")], []]
+
+    def fake_get_updates(*_args, **_kwargs):
+        if not calls:
+            raise _StopLoop
+        if len(calls) == 1:  # the poll after the photos: time has moved on
+            clock[0] += server.PHOTO_BATCH_SECONDS + 1
+        return calls.pop(0)
+
+    monkeypatch.setattr(server, "get_updates", fake_get_updates)
+    settings = _Settings()
+    settings.state_dir = str(tmp_path)
+    with pytest.raises(_StopLoop):
+        server.run_bot(settings)
+
+    assert batched == [[b"a", b"b"]]
+
+
+def test_a_command_closes_the_batch_first(batched, tmp_path, monkeypatch):
+    """/analyze right after sending screenshots must analyze those screenshots,
+    not the previous portfolio."""
+    monkeypatch.setattr(server.time, "monotonic", lambda: 1000.0)  # no timeout elapses
+
+    _run_until(
+        _Settings(),
+        [[_photo_update(1, "a"), _photo_update(2, "b"), _text_update(3, "/analyze")]],
+        tmp_path,
+        monkeypatch,
+    )
+
+    assert batched == [[b"a", b"b"]]
+    server.dispatch_command.assert_called_once()
+
+
+def test_polling_stays_responsive_while_a_batch_is_open(batched, tmp_path, monkeypatch):
+    """The batch can only be closed by a later poll, so that poll can't block
+    for the full long-poll timeout."""
+    monkeypatch.setattr(server.time, "monotonic", lambda: 1000.0)
+    timeouts = []
+
+    calls = [[_photo_update(1, "a")], []]
+
+    def fake_get_updates(_token, offset=None, timeout=None):
+        timeouts.append(timeout)
+        if not calls:
+            raise _StopLoop
+        return calls.pop(0)
+
+    monkeypatch.setattr(server, "get_updates", fake_get_updates)
+    settings = _Settings()
+    settings.state_dir = str(tmp_path)
+    with pytest.raises(_StopLoop):
+        server.run_bot(settings)
+
+    assert timeouts[0] == server.LONG_POLL_TIMEOUT  # idle: block for a while
+    assert timeouts[1] == server.SHORT_POLL_TIMEOUT  # batch open: check back soon

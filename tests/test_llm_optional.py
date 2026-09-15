@@ -122,7 +122,7 @@ def test_anthropic_image_uses_its_own_content_block_shape(monkeypatch):
 
     from portfolio_agent.llm import ImagePart
 
-    complete(_Anthropic(), system="s", user="u", image=ImagePart(data=b"jpeg"))
+    complete(_Anthropic(), system="s", user="u", images=[ImagePart(data=b"jpeg")])
 
     image_block = client.messages.create.call_args.kwargs["messages"][0]["content"][0]
     assert image_block["type"] == "image"

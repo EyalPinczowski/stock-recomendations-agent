@@ -34,7 +34,8 @@ HELP_TEXT = """Commands:
 /riskprofile — show the current risk profile
 /help — this message
 
-Send a photo of your portfolio at any time to update your holdings."""
+Send screenshots of your portfolio at any time to update your holdings — one
+per screenful is fine, they're read together as one portfolio."""
 
 
 def _record_last_request(state_dir: Path, command: str, outcome: str) -> None:
@@ -52,19 +53,43 @@ def _read_last_request(state_dir: Path) -> dict | None:
     return json.loads(path.read_text())
 
 
-def handle_photo(image_bytes: bytes, settings, notifier: TelegramNotifier) -> None:
+def handle_photos(images: list[bytes], settings, notifier: TelegramNotifier) -> None:
+    """A portfolio rarely fits in one screenshot, so a run of them is read as a
+    single portfolio and replaces the snapshot together — never one at a time,
+    which would leave only whatever the last image happened to show."""
     from portfolio_agent.ingest.snapshot_store import save_snapshot
-    from portfolio_agent.ingest.vision_extract import extract_holdings_from_image
+    from portfolio_agent.ingest.vision_extract import extract_holdings_from_images
 
+    label = f"{len(images)} screenshot(s)"
     try:
-        holdings, warnings = extract_holdings_from_image(image_bytes, settings)
-        save_snapshot(holdings, settings.state_dir)
-        _record_last_request(settings.state_dir, "photo", "ok")
-        logger.info("Parsed %d holdings from screenshot (%d warnings).", len(holdings), len(warnings))
+        extracted = extract_holdings_from_images(images, settings)
+        if not extracted.holdings:
+            detail = extracted.warnings[0] if extracted.warnings else "no holdings rows found"
+            _record_last_request(settings.state_dir, "photo", f"no holdings: {detail}")
+            notifier.send_message(
+                f"I couldn't find any holdings in {label}. {detail}\n"
+                "Your previous portfolio is unchanged."
+            )
+            return
+
+        save_snapshot(extracted.holdings, settings.state_dir, extracted.cash_balances)
+        _record_last_request(
+            settings.state_dir, "photo", f"ok: {len(extracted.holdings)} holdings"
+        )
+        logger.info(
+            "Parsed %d holdings from %s (%d warnings).",
+            len(extracted.holdings), label, len(extracted.warnings),
+        )
+        for warning in extracted.warnings:
+            logger.warning("Screenshot: %s", warning)
     except Exception as exc:  # noqa: BLE001
         logger.error("Screenshot ingest failed: %s\n%s", exc, traceback.format_exc())
         _record_last_request(settings.state_dir, "photo", f"failed: {exc}")
-        notifier.send_message(f"Couldn't process that screenshot: {exc}")
+        notifier.send_message(f"Couldn't read {label}: {exc}")
+
+
+def handle_photo(image_bytes: bytes, settings, notifier: TelegramNotifier) -> None:
+    handle_photos([image_bytes], settings, notifier)
 
 
 def _run_report_command(kind: str, settings, notifier: TelegramNotifier) -> None:
@@ -163,7 +188,21 @@ def _build_status_text(settings) -> str:
         lines.append("No requests handled yet.")
 
     if snapshot:
-        lines.append(f"Portfolio snapshot from {snapshot.captured_at.isoformat()} ({len(snapshot.holdings)} holdings).")
+        lines.append(
+            f"Portfolio snapshot from {snapshot.captured_at.isoformat()} "
+            f"({len(snapshot.holdings)} holdings)."
+        )
+        # Worth seeing at a glance: a wrong count is the clearest sign a
+        # screenshot was missed or misread.
+        tickers = ", ".join(sorted(h.ticker for h in snapshot.holdings))
+        if tickers:
+            lines.append(tickers)
+        if snapshot.cash_balances:
+            balances = ", ".join(
+                f"{amount:,.2f} {currency}"
+                for currency, amount in sorted(snapshot.cash_balances.items())
+            )
+            lines.append(f"Cash: {balances}")
     else:
         lines.append("No portfolio snapshot yet — send a screenshot to get started.")
 

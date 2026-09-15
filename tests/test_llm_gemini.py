@@ -78,13 +78,32 @@ def test_image_is_sent_as_inline_base64_data(post):
         _Settings(),
         system="s",
         user="extract",
-        image=llm.ImagePart(data=b"\x89PNG-bytes", media_type="image/png"),
+        images=[llm.ImagePart(data=b"\x89PNG-bytes", media_type="image/png")],
     )
 
     parts = post.call_args.kwargs["json"]["contents"][0]["parts"]
     assert parts[0]["inlineData"]["mimeType"] == "image/png"
     assert base64.standard_b64decode(parts[0]["inlineData"]["data"]) == b"\x89PNG-bytes"
-    assert parts[1]["text"] == "extract"  # image first, then the instruction
+    assert parts[1]["text"] == "extract"  # images first, then the instruction
+
+
+def test_several_images_go_up_in_one_call(post):
+    """A portfolio spans multiple screenshots; one call is cheaper than one
+    call each, and lets the model merge rows that appear in two of them."""
+    post.return_value = _ok("[]")
+
+    llm.complete(
+        _Settings(),
+        system="s",
+        user="extract",
+        images=[llm.ImagePart(data=b"one"), llm.ImagePart(data=b"two"), llm.ImagePart(data=b"three")],
+    )
+
+    assert post.call_count == 1
+    parts = post.call_args.kwargs["json"]["contents"][0]["parts"]
+    assert [base64.standard_b64decode(p["inlineData"]["data"]) for p in parts[:-1]] == [
+        b"one", b"two", b"three",
+    ]
 
 
 def test_thinking_level_only_sent_when_configured(post):

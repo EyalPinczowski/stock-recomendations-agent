@@ -15,7 +15,7 @@ from pathlib import Path
 
 import requests
 
-from portfolio_agent.bot.dispatch import dispatch_command, handle_photo
+from portfolio_agent.bot.dispatch import dispatch_command, handle_photos
 from portfolio_agent.notify.telegram import (
     LONG_POLL_TIMEOUT,
     TelegramNotifier,
@@ -29,8 +29,37 @@ logger = logging.getLogger(__name__)
 RETRY_SLEEP_SECONDS = 5
 CONFLICT_SLEEP_SECONDS = 15
 
+# A portfolio spans several screenshots, sent as an album or one after another.
+# Photos are collected until this long passes with no new one, then read
+# together as a single portfolio.
+PHOTO_BATCH_SECONDS = 8
+# While a batch is open, poll briefly instead of blocking for the full long
+# poll — otherwise the batch couldn't be closed until the next message.
+SHORT_POLL_TIMEOUT = 2
 
-def _handle_update(update: dict, settings, notifier: TelegramNotifier) -> None:
+
+class _PhotoBatch:
+    """Collects the screenshots of one portfolio before they're read."""
+
+    def __init__(self):
+        self.images: list[bytes] = []
+        self.last_added_at = 0.0
+
+    def add(self, image_bytes: bytes) -> None:
+        self.images.append(image_bytes)
+        self.last_added_at = time.monotonic()
+
+    def is_ready(self) -> bool:
+        return bool(self.images) and (
+            time.monotonic() - self.last_added_at >= PHOTO_BATCH_SECONDS
+        )
+
+    def take(self) -> list[bytes]:
+        images, self.images = self.images, []
+        return images
+
+
+def _handle_update(update: dict, settings, notifier: TelegramNotifier, batch: _PhotoBatch) -> None:
     message = update.get("message")
     if not message:
         return
@@ -42,9 +71,13 @@ def _handle_update(update: dict, settings, notifier: TelegramNotifier) -> None:
 
     if "photo" in message:
         largest = max(message["photo"], key=lambda p: p.get("file_size", 0))
-        image_bytes = download_file(settings.telegram_bot_token, largest["file_id"])
-        handle_photo(image_bytes, settings, notifier)
+        batch.add(download_file(settings.telegram_bot_token, largest["file_id"]))
+        logger.info("Screenshot %d received; waiting for more.", len(batch.images))
     elif "text" in message:
+        # A command right after the photos means they're all in — read them
+        # first, so the command runs against the portfolio just sent.
+        if batch.images:
+            handle_photos(batch.take(), settings, notifier)
         dispatch_command(message["text"], settings, notifier)
 
 
@@ -56,9 +89,11 @@ def run_bot(settings) -> None:
 
     logger.info("Bot started — long-polling Telegram for messages.")
     conflicts = 0
+    batch = _PhotoBatch()
     while True:
         try:
-            updates = get_updates(settings.telegram_bot_token, offset=offset, timeout=LONG_POLL_TIMEOUT)
+            poll_timeout = SHORT_POLL_TIMEOUT if batch.images else LONG_POLL_TIMEOUT
+            updates = get_updates(settings.telegram_bot_token, offset=offset, timeout=poll_timeout)
             conflicts = 0
         except requests.HTTPError as exc:
             # 409 means another process is already polling this bot token.
@@ -91,6 +126,12 @@ def run_bot(settings) -> None:
             offset = update["update_id"] + 1
             save_offset(state_dir, offset)
             try:
-                _handle_update(update, settings, notifier)
+                _handle_update(update, settings, notifier, batch)
             except Exception as exc:  # noqa: BLE001
                 logger.error("Unhandled error processing update %s: %s", update.get("update_id"), exc)
+
+        if batch.is_ready():
+            try:
+                handle_photos(batch.take(), settings, notifier)
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Unhandled error reading screenshots: %s", exc)

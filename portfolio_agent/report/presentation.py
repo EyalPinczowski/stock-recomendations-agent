@@ -173,6 +173,15 @@ def build_portfolio_deck(report: PortfolioReport) -> Presentation:
                    f"Total value: ${report.total_value:,.2f}", size=20, color=ACCENT, bold=True)
     deck.add_text(slide, Inches(0.8), Inches(3.85), Inches(11.7), Inches(0.4),
                    f"As of {report.generated_at:%Y-%m-%d %H:%M} UTC", size=13, color=MUTED)
+    if report.cash_balances:
+        # What's actually available to act on a BUY, which the allocation
+        # percentages (invested capital only) deliberately don't show.
+        balances = "   ".join(
+            f"{amount:,.2f} {currency}"
+            for currency, amount in sorted(report.cash_balances.items())
+        )
+        deck.add_text(slide, Inches(0.8), Inches(4.65), Inches(11.7), Inches(0.4),
+                       f"Uninvested cash: {balances}", size=13, color=MUTED)
     deck.add_text(slide, Inches(0.8), Inches(4.25), Inches(11.7), Inches(0.4),
                    f"Risk profile: {report.risk_profile.name} "
                    f"({report.risk_profile.target_conservative_pct:.0%}/{report.risk_profile.target_aggressive_pct:.0%} "
